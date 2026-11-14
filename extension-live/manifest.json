@@ -1,0 +1,9 @@
+{
+  "manifest_version": 3,
+  "name": "AccessPatch — Live guidance connector",
+  "version": "0.1.0",
+  "description": "Preview page text and controls, then request user-led guidance from your local AccessPatch backend.",
+  "permissions": ["activeTab", "scripting", "storage"],
+  "host_permissions": ["http://127.0.0.1/*"],
+  "action": { "default_title": "AccessPatch guidance", "default_popup": "popup.html" }
+}
