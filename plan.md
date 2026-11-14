@@ -455,6 +455,141 @@ This phase is separately scoped and does not block the government/financial-assi
 - [ ] Accessibility checks and sensitive-data checks are recorded.
 - [ ] Documentation distinguishes implemented, mocked, unverified, and future capabilities.
 
+## Parallel execution: five independent member workstreams
+
+Use these five workstreams to divide implementation among team members. They regroup Tasks 1–10 by ownership; they do not introduce a second implementation. Members can build and test against fixtures immediately after agreeing on the contracts below. Final integration still requires their real components to work together.
+
+### Shared kickoff: agree once before working separately
+
+- [ ] Member 5 creates the workspace skeleton, package scripts, fictional demo pages, and shared fixtures from Task 1.
+- [ ] Member 3 publishes the contracts and strict schemas in `packages/shared/src/`, including complete definitions for `PlannerResult`, `SourceExcerpt`, `TaskState`, `ValidationResult`, `PatchReceipt`, and `TelemetryEvent`. Follow the interfaces above rather than creating competing names.
+- [ ] Agree on one benefits journey, one insurance fixture, ports, supported origins, environment variable names, and a shared example request/response for every endpoint.
+- [ ] Freeze a version-one contract. Each member confirms that their component accepts the same sample data before building further.
+- [ ] Record ownership below. Only the assigned owner changes a shared file; other members request changes through a small reviewed contract update.
+- [ ] Each member works on a separate branch and owns tests for their modules. Never commit credentials. Mocked responses must be labeled and kept separate from real-provider verification.
+
+The kickoff is a short shared prerequisite, not a requirement to finish the extension or backend before anyone else starts. Use the same fixtures to unblock all five workstreams.
+
+### Workstream 1 — Chrome extension and adaptation engine
+
+**Owner:** Member 1. **Related tasks:** 2, 3, and browser-side portions of 7.
+
+**Owns:** `apps/extension/manifest.json`, `background.ts`, `content.ts`, `page-map.ts`, `privacy.ts`, `patch-engine.ts`, `progress.ts`, and `session.ts`; page-map/privacy/patch-engine tests. Owns the content-script integration point and permissions.
+
+**Build independently:**
+
+1. Map the demo page into `PageSnapshot` and keep target resolution local to the extension.
+2. Minimize outgoing context and exclude input values and secret URL parameters.
+3. Accept a fixture `GuidanceProposal`, validate page/target/revision, and apply reversible emphasis and approved collapses.
+4. Track navigation and relevant page changes; emit `ProgressEvent` without clicking or filling anything.
+5. Connect the API client and Member 2's UI through the agreed bridge.
+
+**Integration contract:** Export the mapping, validation, patch, and restore interfaces defined in Tasks 2–3. Receive UI callbacks `onTaskSubmit(task)`, `onAdaptationApprove(stepId)`, `onShowTarget(stepId)`, `onPause()`, `onRestore()`, and `onConfirmStep(stepId)`. The UI must not manipulate the website DOM directly. This owner resolves targets and exposes read-only target bounds for mascot placement.
+
+**Mocks needed:** Static page fixtures, valid/stale/invalid proposals, and a fake task API returning predetermined steps. No sponsor credentials are required for initial development.
+
+**Handoff:** An unpacked extension that adapts a fictional form, restores it, and emits progress events. Demonstrate that wrong targets are rejected and no website action occurs automatically.
+
+### Workstream 2 — Guide interface, mascot, and ElevenLabs audio
+
+**Owner:** Member 2. **Related task:** 8 and guide presentation portions of 3.
+
+**Owns:** Extension `guide.ts`, `mascot.ts`, `audio.ts`, `guide.css`, `popup.ts`, `popup.html`; API `speech.ts`; guide and speech tests. Owns ElevenLabs integration. Export a speech route handler; Member 3 mounts it in the shared server.
+
+**Build independently:**
+
+1. Build the task-entry panel, adaptation preview, and one-step instruction view against fixture proposals.
+2. Add Gleam's panel/beside-target modes using supplied target bounds; test positioning without requiring the live mapping engine.
+3. Add keyboard-accessible Repeat, Explain more, Previous instruction, Pause, I'm lost, Show original, and explicit microphone controls.
+4. Implement the backend ElevenLabs speech adapter and extension playback, including interruption, stale-response rejection, text fallback, and reduced motion.
+5. Wire UI callbacks to Member 1's bridge and speech routes to Member 3's API.
+
+**Integration contract:** Consume `GuidanceProposal`; expose `renderGuidance`, `positionMascot`, `playInstruction`, and `stopAudio` from Task 8. Emit only UI intent callbacks. The speech adapter receives approved instruction text and returns audio; never expose provider credentials to the extension.
+
+**Mocks needed:** Target bounding rectangles, sample instructions, mock audio responses, and microphone denial/timeout cases.
+
+**Handoff:** A usable panel and mascot plus one real ElevenLabs instruction that can be stopped and replayed. Verify keyboard navigation, 200% zoom, reduced motion, and operation without audio.
+
+### Workstream 3 — Gemini planner, Mastra workflow, and API coordination
+
+**Owner:** Member 3. **Related tasks:** 6, server/workflow portions of 7, and shared API setup from 4.
+
+**Owns:** API `server.ts`, `config.ts`, `routes.ts`, `planner.ts`, `workflows/guidance.ts`; `packages/shared/src/*`; planner/workflow tests. Owns root route registration and contract versioning. Gemini and Mastra integrations live here.
+
+**Build independently:**
+
+1. Publish shared contracts and fixture API responses during kickoff.
+2. Implement task interpretation and structured next-step proposals using supplied page maps and source excerpts.
+3. Reject unsupported targets/source IDs and return clarification or unsupported states when necessary.
+4. Build the Mastra state machine, including waiting, explicit progress events, retries, pause, and resume.
+5. Mount Member 2's speech handlers and Member 4's data/source/auth handlers; connect the workflow storage adapter after its persistence test passes.
+
+**Integration contract:** Implement the HTTP boundaries and `planStep`, `startGuidance`, and `resumeGuidance` signatures above. Depend on Member 4's source and persistence interfaces, never directly on their table internals. Define which module validates each boundary; do not rely on Gemini to enforce local presentation safety.
+
+**Mocks needed:** In-memory run storage, source excerpts, fake speech handlers, and canned browser snapshots/events. Replace the in-memory workflow storage with the verified persistent adapter before calling resume persistence complete.
+
+**Handoff:** An API-driven journey that waits for events, survives a restart with real storage, and includes a real Gemini response and observable Mastra suspend/resume. Malformed responses and hostile page instructions must not expand capabilities.
+
+### Workstream 4 — Bright Data, Tiger Data, authentication, and analytics
+
+**Owner:** Member 4. **Related tasks:** persistence/auth portions of 4, all of 5, and data portions of 9.
+
+**Owns:** API `auth.ts`, `db.ts`, `sources.ts`, `scripts/collect-sources.ts`, `migrations/001_initial.sql`, plus new `telemetry.ts` and `diagnostics.ts` modules; storage/source/analytics/auth tests. Owns Bright Data and Tiger Data integrations. Exports handlers instead of editing Member 3's route registry.
+
+**Build independently:**
+
+1. Create migrations, run/event repositories, authentication handlers, ownership checks, expiry, and cleanup behavior.
+2. Implement an approved-source collector with URL/redirect restrictions, extraction, timestamps, and source records.
+3. Implement task-relevant excerpt retrieval; return source IDs and original URLs.
+4. Provide a Mastra-compatible persistence adapter verified against the selected version, coordinating its interface with Member 3.
+5. Implement consented telemetry and protected sponsor diagnostics consumed by Member 5's demo view.
+
+**Integration contract:** Export `createRun`, `loadRun`, `appendEvent`, `collectSource`, `retrieveContext`, `recordTelemetry`, and `getDemoRun` as defined above. Authentication yields trusted caller identity; never accept an owner ID directly from an untrusted request body. Return safe errors rather than raw database/provider errors.
+
+**Mocks needed:** Approved HTML samples, a fake Bright Data client, synthetic events, and a disposable PostgreSQL test database. Use real Tiger Data for the sponsor smoke test.
+
+**Handoff:** One real Bright Data source collected into Tiger Data, isolated persistent runs, deduplicated events, and working minimal diagnostics. Prove private-address rejection, cross-user denial, and consent-off behavior.
+
+### Workstream 5 — Demo journeys, integration testing, and presentation
+
+**Owner:** Member 5. **Related tasks:** 1, developer-view portion of 9, and 10.
+
+**Owns:** Root `package.json`, lockfile and workspace configuration; `apps/demo/*`; `tests/e2e/*`; common `tests/fixtures/*`; `docs/*`; `.env.example`; `.gitignore`; and `README.md`. Other members can propose dependencies; this owner merges shared configuration changes. Member 5 coordinates end-to-end test changes requested by Members 1–2.
+
+**Build independently:**
+
+1. Establish the workspace and fixtures during kickoff, then create the complete fictional benefits and insurance journeys.
+2. Build a protected developer demo view against mock `DemoRunSummary` responses, clearly labeling synthetic content.
+3. Write end-to-end scenarios for normal progression, error recovery, undo, lost targets, navigation, denied permissions, and provider failure.
+4. Add outbound-payload canary checks and a manual accessibility checklist. Collect each owner's real sponsor smoke-test evidence.
+5. Write the demo script and integrate the actual components; track unresolved limitations and prevent mocked integrations being presented as live.
+
+**Integration contract:** Consume the documented HTTP API and shared fixtures only. Do not bypass the extension by making the demo page auto-fill or auto-navigate. The developer view reads the authenticated diagnostics endpoint; user guidance remains in the extension.
+
+**Mocks needed:** Fake backend states for each journey step and each sponsor status. Keep a deterministic offline fixture path for rehearsals, visibly labeled as such.
+
+**Handoff:** Reproducible setup instructions, passing complete-journey tests, accessibility observations, sponsor evidence, and a repeatable demonstration.
+
+### Integration checkpoints and merge order
+
+- [ ] **Checkpoint 0 — Contract handshake:** All members load identical fixture snapshots/proposals; agree on ownership and scripts. Merge shared skeleton and contracts first.
+- [ ] **Checkpoint 1 — Local vertical slice:** Members 1 and 2 connect the panel to mapping and adaptation on Member 5's form. All sponsor services may still be mocked at this checkpoint.
+- [ ] **Checkpoint 2 — Real planning and persistence:** Members 3 and 4 connect Gemini/Mastra to Bright Data/Tiger Data; verify caller isolation, sources, waiting, and restart recovery before wiring the real API to the extension.
+- [ ] **Checkpoint 3 — Complete sponsored journey:** Connect the extension, backend, ElevenLabs, and developer view. Replace each fixture integration with a real call and record its evidence separately.
+- [ ] **Checkpoint 4 — Release candidate demo:** Member 5 runs Task 10's checks; each owner fixes failures in their files. Restore, privacy, user control, and accessibility failures block completion.
+
+Merge in small increments at each checkpoint rather than waiting for five large branches. Changes to shared contracts require notifying all owners and updating fixtures in the same change. Never silently add a field that one team's component cannot understand.
+
+### If the team has four members
+
+Assign Members 1–4 as above. Distribute Workstream 5 as follows:
+
+- Member 1 owns workspace/build configuration, fixtures, and extension end-to-end tests.
+- Member 2 owns the manual accessibility checklist and presentation script.
+- Member 3 owns API/workflow integration tests and full-journey coordination.
+- Member 4 owns the developer diagnostics view and sponsor evidence collection.
+- Name one integration lead during kickoff to own the final verification record and README. This person coordinates merges; they do not become the sole tester.
+
 ## Official references
 
 Verify exact SDK signatures and service capabilities again when implementing; this plan was prepared on November 14, 2026.
