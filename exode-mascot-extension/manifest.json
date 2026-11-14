@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "Exode Mascot",
+  "version": "1.0.1",
+  "description": "Shows the ExodeUI ip-2016 mascot in the bottom-right corner of web pages.",
+  "web_accessible_resources": [
+    {
+      "resources": ["exode-mascot.js", "files/ip-2016.bexode"],
+      "matches": ["http://*/*", "https://*/*"]
+    }
+  ],
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
