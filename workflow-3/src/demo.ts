@@ -1,0 +1,13 @@
+import { configuredService } from './config.js';
+import { startPage, formPage } from './fixtures.js';
+const service = configuredService();
+console.log('AccessPatch workflow 3 — fictional, standalone demonstration');
+console.log('Sponsor modes:', service.modes);
+const first = await service.start('Help with my energy bill', startPage);
+console.log('\n1. Guidance; Mastra is waiting:', JSON.stringify(first, null, 2));
+console.log('\n2. Simulating a user navigating to the fictional form (no browser action).');
+const next = await service.event(first.runId, { eventId: 'demo-navigation', stepId: first.stepId, pageId: first.pageId, revision: first.revision, type: 'navigation-observed', snapshot: formPage });
+console.log(JSON.stringify(next, null, 2));
+console.log('\n3. Speech adapter:', await service.speak(next.runId, next.stepId));
+console.log('\n4. Paused:', (await service.pause(next.runId)).status);
+console.log('Done. No real application was submitted. No data persists after exit.');
