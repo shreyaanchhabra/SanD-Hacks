@@ -1,0 +1,13 @@
+{
+  "manifest_version": 3,
+  "name": "AccessPatch Companion",
+  "version": "0.1.0",
+  "description": "User-controlled text, search, navigation, simplification, and visual accessibility tools.",
+  "action": { "default_title": "Open AccessPatch Companion" },
+  "content_scripts": [{
+    "matches": ["http://*/*", "https://*/*"],
+    "js": ["content.js"],
+    "css": ["styles.css"],
+    "run_at": "document_idle"
+  }]
+}
