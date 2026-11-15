@@ -5,7 +5,8 @@
   let ids = new WeakMap(), counter = 0, targets = new Map(), highlighted, timer;
   const forbidden = '[data-apc-ui],#accesspatch-guide,#accesspatch-companion-root,#exode-mascot-extension-root,input,textarea,select,option,script,style,[role="textbox"],[contenteditable]:not([contenteditable="false"])';
   const visible = el => !el.closest('[hidden],[aria-hidden="true"],[inert]') && el.getClientRects().length > 0 && getComputedStyle(el).visibility !== 'hidden' && getComputedStyle(el).display !== 'none';
-  const clean = (value, limit = 160) => value.replace(/\s+/g, ' ').trim().slice(0, limit);
+  let privateTokens=[];
+  const clean = (value, limit = 160) => {let output=String(value);for(const token of privateTokens)output=output.split(token).join('[private answer]');return output.replace(/\s+/g, ' ').trim().slice(0, limit);};
   function safeText(el, limit = 160) {
     if (!el || el.closest(forbidden) || !visible(el)) return '';
     const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
@@ -19,8 +20,9 @@
   function label(el) {
     const labelled = (el.getAttribute('aria-labelledby') || '').split(/\s+/).filter(Boolean).slice(0, 3).map(id => safeText(document.getElementById(id))).join(' ');
     const associated = Array.from(el.labels || []).map(label => safeText(label)).join(' ');
-    const fieldLike = el.matches('input,select,textarea,[role="textbox"]');
-    return clean(labelled || el.getAttribute('aria-label') || associated || (fieldLike ? '' : safeText(el)));
+    const fieldLike = el.matches('input:not([type="submit"]):not([type="button"]):not([type="reset"]),select,textarea,[role="textbox"]');
+    const buttonLabel=el.matches('input[type="submit"],input[type="button"],input[type="reset"]')?el.getAttribute('value'):'';
+    return clean(labelled || el.getAttribute('aria-label') || associated || buttonLabel || (fieldLike ? '' : safeText(el)));
   }
   function restore() {
     clearInterval(timer);
@@ -36,6 +38,7 @@
   function snapshot() {
     if (!/^https?:$/.test(location.protocol)) throw new Error('Only ordinary HTTP/HTTPS pages are supported.');
     if (location.href !== lastURL) { restore(); pageId = crypto.randomUUID(); revision = 1; signature = ''; ids = new WeakMap(); counter = 0; lastURL = location.href; }
+    privateTokens=Array.from(document.querySelectorAll('input:not([type=submit]):not([type=button]):not([type=reset]):not([type=checkbox]):not([type=radio]),textarea')).map(el=>el.value).filter(value=>value&&value.length>=3).sort((a,b)=>b.length-a.length);
     const elements = [], instructions = [];
     targets = new Map();
     const candidates = Array.from(document.querySelectorAll('a[href],button,input,select,textarea,[role="button"],[role="link"],[role="textbox"]')).sort((a,b)=>Number(!!b.closest('main,form,[role="main"]'))-Number(!!a.closest('main,form,[role="main"]')));
@@ -46,15 +49,23 @@
       if (!ids.has(el)) ids.set(el, `ap-${++counter}`);
       const id = ids.get(el);
       const kind = el.matches('a,[role="link"]') ? 'link' : el.matches('button,input[type="submit"],input[type="button"],[role="button"]') ? 'button' : 'field';
-      const role = el.getAttribute('role') || (kind === 'field' ? (el.tagName === 'SELECT' ? 'combobox' : 'textbox') : kind);
-      elements.push({ id, role: clean(role), name, kind, protected: kind === 'field' || !!el.required });
+      const role = el.getAttribute('role') || (kind === 'field' ? (el.tagName === 'SELECT' ? 'combobox' : el.type==='checkbox'?'checkbox':el.type==='radio'?'radio':'textbox') : kind);
+      const field=kind==='field';const groupLabel=field?safeText(el.closest('fieldset')?.querySelector(':scope > legend')):'';
+      const required=!!el.required||el.getAttribute('aria-required')==='true';
+      const constraints={};if(field){for(const key of ['min','max'])if(el.getAttribute(key))constraints[key]=clean(el.getAttribute(key),80);for(const key of ['minLength','maxLength'])if(el[key]>=0)constraints[key]=el[key];}
+      const invalid=el.getAttribute('aria-invalid')==='true';
+      const errorIds=(el.getAttribute('aria-errormessage')||'').split(/\s+/).filter(Boolean).slice(0,3);
+      const errors=invalid?['The page reports a validation error for this field. Review its original message.']:[];
+      elements.push({ id, role: clean(role), name, kind, protected: field || required,...(field?{required,inputType:el.tagName==='SELECT'?'select':el.tagName==='TEXTAREA'?'textarea':el.getAttribute('type')||'text',...(groupLabel?{groupLabel}:{}),...(Object.keys(constraints).length?{constraints}:{}),validation:{invalid,messages:errors}}:{}) });
       targets.set(id, el);
       const help = (el.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean).slice(0, 2).map(id => safeText(document.getElementById(id), 250)).filter(Boolean).join(' ').slice(0, 250);
-      if (help) instructions.push({ elementId: id, text: help });
+      const answered=el.matches('input[type=checkbox],input[type=radio]')?el.checked:el.matches('[role="textbox"]')?!!el.textContent.trim():!!el.value;
+      if (help&&!answered&&!invalid) instructions.push({ elementId: id, text: help });
     }
     const data = { pageId, url: `${location.origin}/`, title: clean(document.title) || 'Untitled page', headings: Array.from(document.querySelectorAll('h1,h2,h3')).filter(visible).map(el => safeText(el)).filter(Boolean).slice(0, 8), elements, instructions };
     // Destination and control semantics participate locally in invalidation, never in outbound context.
-    const semantics = Array.from(targets.values()).map(el => [el.getAttribute('href'), el.getAttribute('type'), el.getAttribute('formaction')]);
+    const semantics = Array.from(targets.values()).map(el => [el.getAttribute('href'), el.getAttribute('type'), el.getAttribute('formaction'),el.closest('form')?.getAttribute('action'),el.closest('form')?.getAttribute('method')]);
+    data.structureFingerprint=AccessPatchFingerprint.hash(JSON.stringify(semantics));
     const nextSignature = JSON.stringify([data, semantics]);
     if (signature && signature !== nextSignature) { revision++; restore(); }
     signature = nextSignature;

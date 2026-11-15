@@ -87,7 +87,7 @@ test('invalid citation retry explains the source/target distinction to the plann
 
 test('provider schema restricts target IDs and forbids citations when source list is empty',()=>{
  const schema=z.fromJSONSchema(responseSchema({...input(),sources:[]}));
- const valid={kind:'guidance',instruction:'Read the link.',explanation:'Page label.',targetId:'energy-link',sourceIds:[],expectedOutcome:'navigation'};
+ const valid={kind:'guidance',instruction:'Read the link.',explanation:'Page label.',targetId:'energy-link',sourceIds:[],expectedOutcome:'navigation',observations:[{text:'The Energy bill assistance link is present.',basis:'page',elementId:'energy-link'}],changeSummary:null,completionEvidence:{type:'navigation',description:'The user opens the next page.',elementId:'energy-link'}};
  assert.equal(schema.safeParse(valid).success,true);
  assert.equal(schema.safeParse({...valid,sourceIds:['energy-link']}).success,false);
  assert.equal(schema.safeParse({...valid,targetId:'made-up-target'}).success,false);
@@ -95,4 +95,8 @@ test('provider schema restricts target IDs and forbids citations when source lis
 test('a real provider rate limit is visible rather than reported as ambiguous guidance',async()=>{
  const result=await planStep(input(),async()=>{throw Object.assign(new Error('private provider error'),{status:429});});
  assert.equal(result.kind,'unsupported');if(result.kind==='unsupported')assert.match(result.reason,/rate limit/);
+});
+test('observations and expected progress cannot reference invented targets or unseen images',async()=>{
+ const base={kind:'guidance',instruction:'Read the energy link.',explanation:'Page context.',targetId:'energy-link',sourceIds:[],expectedOutcome:'navigation'};
+ for(const extra of [{observations:[{text:'Image fact',basis:'image',elementId:null}]},{observations:[{text:'Unknown field',basis:'page',elementId:'invented'}]},{completionEvidence:{type:'navigation',description:'Next page',elementId:'invented'}}])assert.equal((await planStep(input(),async()=>({...base,...extra}))).kind,'unsupported');
 });

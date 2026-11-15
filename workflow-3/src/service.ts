@@ -2,31 +2,34 @@ import { randomUUID } from 'node:crypto';
 import { createStep, createWorkflow } from '@mastra/core/workflows';
 import { z } from 'zod';
 import { Mastra } from '@mastra/core/mastra';
+import { GuidanceEngine } from './guidance-engine.js';
 import { TaskRepository } from './repository.js';
 import type { MastraCompositeStore } from '@mastra/core/storage';
 import { InMemoryStore } from '@mastra/core/storage';
-import { eventSchema, snapshotSchema, startSchema, sourceSchema, resultSchema, type Screenshot, type PageSnapshot, type Planner, type SourceAdapter, type SpeechAdapter, type TaskState } from './contracts.js';
+import { pageChangeSchema, type PageChange, eventSchema, snapshotSchema, startSchema, sourceSchema, resultSchema, type Screenshot, type PageSnapshot, type Planner, type SourceAdapter, type SpeechAdapter, type TaskState } from './contracts.js';
 import { sources } from './fixtures.js';
 import { mockPlanner, planStep } from './planner.js';
 import type { TigerDataStore, GuidanceEventType } from './tiger-data.js';
 
-export function createService(options: { planner?: Planner; sources?: SourceAdapter; speech?: SpeechAdapter; plannerMode?: string; repository?: TaskRepository; storage?: MastraCompositeStore; tiger?: TigerDataStore } = {}) {
+export function createService(options: { planner?: Planner; sources?: SourceAdapter; speech?: SpeechAdapter; plannerMode?: string; repository?: TaskRepository; storage?: MastraCompositeStore; tiger?: TigerDataStore; engine?: GuidanceEngine } = {}) {
   const sourceAdapter = options.sources ?? { mode: 'synthetic-fixture', retrieveContext: async () => sources };
   const speech = options.speech ?? { mode: 'mock-no-audio', speak: async () => ({ status: 'mock-no-audio' }) };
-  const inputSchema = z.object({ task: z.string(), snapshot: snapshotSchema, history: z.array(z.string()), imageKey: z.string().optional() });
+  const inputSchema = z.object({ task: z.string(), snapshot: snapshotSchema, history: z.array(z.string()), imageKey: z.string().optional(), pageChange:pageChangeSchema.optional() });
   const images = new Map<string, Screenshot>();
-  const turnSchema = z.object({ result: resultSchema, sources: z.array(sourceSchema) });
+  const turnSchema = z.object({ result: resultSchema, sources: z.array(sourceSchema),usage:z.object({cache:z.enum(['hit','miss','coalesced','bypass']),status:z.string(),store:z.string(),providerCalls:z.number(),retryAfterSeconds:z.number().optional()}).optional() });
   const planning = createStep({ id: 'plan', inputSchema, outputSchema: turnSchema, execute: async ({ inputData }) => {
     let excerpts: z.infer<typeof sourceSchema>[] = [];
     try { excerpts = z.array(sourceSchema).max(10).parse(await sourceAdapter.retrieveContext(inputData.task, inputData.snapshot)); } catch { /* Page-only guidance remains available. */ }
-    const result = await planStep({ task: inputData.task, snapshot: inputData.snapshot, history: inputData.history, sources: excerpts, screenshot: inputData.imageKey ? images.get(inputData.imageKey) : undefined }, options.planner ?? mockPlanner);
+    const input={task:inputData.task,snapshot:inputData.snapshot,history:inputData.history,sources:excerpts,screenshot:inputData.imageKey?images.get(inputData.imageKey):undefined,pageChange:inputData.pageChange};
+    const planned=options.engine?await options.engine.plan(input):{result:await planStep(input,options.planner??mockPlanner),usage:undefined};
+    const {result,usage}=planned;
     const citedSources = result.kind === 'guidance' ? excerpts.filter(s => result.sourceIds.includes(s.id)) : [];
     if (options.tiger && !['synthetic-fixture', 'not-connected'].includes(sourceAdapter.mode)) {
       for (const source of citedSources) if (!source.synthetic && source.url.startsWith('https://')) {
         try { await options.tiger.saveApprovedSource({ id: source.id, url: source.url, title: source.id, excerpt: source.text, retrievedAt: source.retrievedAt }); } catch { /* Public-source persistence must not interrupt page guidance. */ }
       }
     }
-    return { result, sources: citedSources };
+    return { result, usage, sources: citedSources };
   } });
   const waiting = createStep({ id: 'wait-for-user', inputSchema: turnSchema, outputSchema: turnSchema, resumeSchema: z.object({ proceed: z.literal(true) }), suspendSchema: turnSchema,
     execute: async ({ inputData, resumeData, suspend }) => resumeData?.proceed ? inputData : suspend(inputData) });
@@ -44,22 +47,22 @@ export function createService(options: { planner?: Planner; sources?: SourceAdap
     const confirmedProgress=record.history.flatMap(entry=>{try{const parsed=JSON.parse(entry) as {event?:string;result?:{stage?:string;journey?:string[]}};return parsed.event==='user-confirmed'?[parsed.result?.stage??parsed.result?.journey?.at(-1)].filter((x):x is string=>Boolean(x)):[];}catch{return[];}});
     await options.tiger.saveJourney({id:record.state.runId,goal:record.task,milestone:record.state.stage??record.state.journey.at(-1)??record.state.status,confirmedProgress,mastraRunId:record.workflowRunId,updatedAt:new Date().toISOString()});
   };
-  async function turn(runId: string, task: string, snapshot: PageSnapshot, history: string[], screenshot?: Screenshot) {
+  async function turn(runId: string, task: string, snapshot: PageSnapshot, history: string[], screenshot?: Screenshot, pageChange?:PageChange) {
     if (screenshot && (screenshot.pageId !== snapshot.pageId || screenshot.revision !== snapshot.revision)) throw new Error('Screenshot page does not match current page');
     const imageKey = screenshot ? randomUUID() : undefined;
     if (imageKey) images.set(imageKey, screenshot!);
     let run!: Run;
     let output;
-    try { run = await workflow.createRun(); output = await run.start({ inputData: { task, snapshot, history, imageKey } }); }
+    try { run = await workflow.createRun(); output = await run.start({ inputData: { task, snapshot, history, imageKey, pageChange } }); }
     finally { if (imageKey) images.delete(imageKey); }
     if (output.status !== 'suspended') throw new Error('Workflow unavailable');
-    const { result, sources: citedSources } = turnSchema.parse(output.steps['wait-for-user'].suspendPayload);
-    const state: TaskState = { runId, stepId: randomUUID(), pageId: snapshot.pageId, revision: snapshot.revision, status: result.kind === 'clarification' ? 'clarifying' : result.kind === 'unsupported' ? 'unsupported' : 'waiting-for-user', result, sources: citedSources, workflowStatus: output.status, task, journey: result.journey ?? [], ...(result.stage ? {stage: result.stage} : {}), analysis: { input: screenshot ? 'image+text' : 'text', imageStatus: !screenshot ? 'not-requested' : result.visualObservation ? 'analyzed' : result.kind === 'unsupported' ? 'failed' : 'unverified', observation: result.visualObservation ?? null, provider: options.plannerMode ?? 'mock' } };
+    const { result, sources: citedSources, usage } = turnSchema.parse(output.steps['wait-for-user'].suspendPayload);
+    const state: TaskState = { runId, stepId: randomUUID(), pageId: snapshot.pageId, revision: snapshot.revision, status: result.kind === 'clarification' ? 'clarifying' : result.kind === 'unsupported' ? 'unsupported' : 'waiting-for-user', result, sources: citedSources, workflowStatus: output.status, task, journey: result.journey ?? [], ...(result.stage ? {stage: result.stage} : {}), analysis: { input: screenshot ? 'image+text' : 'text', imageStatus: !screenshot ? 'not-requested' : result.visualObservation ? 'analyzed' : result.kind === 'unsupported' ? 'failed' : 'unverified', observation: result.visualObservation ?? null, provider: options.plannerMode ?? 'mock',...(usage?{cache:usage.cache,cacheStore:usage.store,providerCalls:usage.providerCalls,retryAfterSeconds:usage.retryAfterSeconds}:{}) } };
     return { run, state, workflowRunId: run.runId };
   }
   return {
-    persistence: options.repository ? `local SQLite Mastra checkpoints and task files; ${options.tiger ? 'opt-in Tiger Data resume cards and consented events' : 'no Tiger Data connection'}; active local tasks expire after one idle hour` : 'memory',
-    modes: { Gemini: options.plannerMode ?? 'mock', Mastra: 'real-local-suspend-resume', 'Bright Data': sourceAdapter.mode, 'Tiger Data': options.tiger ? 'connected; explicit saves and consented events only' : 'not-connected', ElevenLabs: speech.mode },
+    persistence: options.repository ? `local SQLite Mastra checkpoints and task files; ${options.tiger ? 'opt-in Tiger Data resume cards and consented events' : 'no Tiger Data journey store'}; guidance cache: ${options.engine?.cacheMode ?? 'off'}; active unsaved tasks expire after one idle hour` : 'memory',
+    get modes(){return { Gemini: options.plannerMode ?? 'mock', Mastra: 'real-local-suspend-resume', 'Bright Data': sourceAdapter.mode, 'Tiger Data': options.tiger ? 'connected; explicit saves and consented events only' : options.engine?.cacheMode === 'tiger-data' ? 'cache connected; journey store needs owner ID' : options.engine?.cacheMode === 'local-fallback' ? 'cache local fallback' : 'not-connected', ElevenLabs: speech.mode };},
     async start(task: string, snapshot: PageSnapshot, screenshot?: Screenshot) {
       const { screenshot: image, ...clean } = startSchema.parse({ task, snapshot, screenshot });
       for (const [id, r] of records) if (!r.saved && Date.now() - r.touched > 3600000) records.delete(id);
@@ -75,8 +78,9 @@ export function createService(options: { planner?: Planner; sources?: SourceAdap
       if (!consent) throw new Error('Explicit save consent is required');
       if (!options.tiger) throw new Error('Tiger Data is not configured');
       const record = get(runId);
-      await syncSavedJourney(record);
       record.saved = true;
+      try { await syncSavedJourney(record); }
+      catch (error) { record.saved = false; throw error; }
       persist(record);
       return { saved: true, id: runId };
     },
@@ -107,7 +111,7 @@ export function createService(options: { planner?: Planner; sources?: SourceAdap
         const task = event.type === 'clarification-answered' ? `${record.task}\nClarification: ${event.answer}`.slice(-2000) : record.task;
         const history = [...record.history, JSON.stringify({ event: event.type, userHelp: event.type === 'help-requested' ? event.answer : undefined, pageId: record.state.pageId, result: record.state.result })].slice(-12);
         // Prepare the next turn first: failure leaves the current suspended run retryable.
-        const next = await turn(runId, task, snapshot, history, event.screenshot);
+        const next = await turn(runId, task, snapshot, history, event.screenshot,{event:event.type,previousTitle:record.snapshot.title,addedLabels:snapshot.elements.filter(e=>!record.snapshot.elements.some(old=>old.name===e.name)).slice(0,10).map(e=>e.name),removedLabels:record.snapshot.elements.filter(e=>!snapshot.elements.some(next=>next.name===e.name)).slice(0,10).map(e=>e.name),visibleErrors:snapshot.elements.filter(e=>e.validation?.invalid).length});
         const previousRun = record.run ?? await workflow.createRun({ runId: record.workflowRunId });
         if(!next.state.journey.length)next.state.journey=record.state.journey;
         if((record.state as TaskState).status==='paused')next.state.status='paused';

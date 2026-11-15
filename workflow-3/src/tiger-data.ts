@@ -16,7 +16,11 @@ export type SavedJourney = {
 
 /** Tiger Data stores only explicit user saves, approved public sources, and consented coarse events. */
 export class TigerDataStore {
-  private constructor(private pool: Pool, private ownerId: string) {}
+  private retentionTimer: NodeJS.Timeout;
+  private constructor(private pool: Pool, private ownerId: string) {
+    this.retentionTimer = setInterval(() => { void this.pruneEvents().catch(() => undefined); }, 6 * 60 * 60 * 1000);
+    this.retentionTimer.unref();
+  }
 
   static async connect(connectionString: string, ownerId: string) {
     const pool = new Pool({ connectionString, max: 5, idleTimeoutMillis: 30_000, connectionTimeoutMillis: 5_000, ssl: { rejectUnauthorized: true } });
@@ -28,7 +32,10 @@ export class TigerDataStore {
   private async migrate() {
     const migration = readFileSync(fileURLToPath(new URL('../migrations/001_tiger_data.sql', import.meta.url)), 'utf8');
     await this.pool.query(migration);
+    await this.pruneEvents();
   }
+
+  private async pruneEvents() { await this.pool.query("DELETE FROM accesspatch_guidance_events WHERE created_at < now() - interval '7 days'"); }
 
   async saveJourney(journey: SavedJourney) {
     await this.pool.query(`INSERT INTO accesspatch_saved_journeys(id,owner_id,goal,milestone,confirmed_progress,mastra_run_id,updated_at)
@@ -45,7 +52,7 @@ export class TigerDataStore {
   async deleteJourney(id: string) { await this.pool.query('DELETE FROM accesspatch_saved_journeys WHERE id=$1 AND owner_id=$2', [id, this.ownerId]); }
 
   async recordEvent(input: { id: string; type: GuidanceEventType; journeyCategory: string; stepCategory: string; provider?: string }) {
-    await this.pool.query("DELETE FROM accesspatch_guidance_events WHERE created_at < now() - interval '7 days'");
+    await this.pruneEvents();
     await this.pool.query(`INSERT INTO accesspatch_guidance_events(id,owner_id,event_type,journey_category,step_category,provider)
       VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(id) DO NOTHING`, [input.id, this.ownerId, input.type, input.journeyCategory, input.stepCategory, input.provider ?? null]);
   }
@@ -62,7 +69,7 @@ export class TigerDataStore {
       excerpt=excluded.excerpt,content_sha256=excluded.content_sha256,retrieved_at=excluded.retrieved_at`, [input.id, url.toString(), input.title.slice(0, 300), excerpt, hash, input.retrievedAt]);
   }
 
-  async close() { await this.pool.end(); }
+  async close() { clearInterval(this.retentionTimer); await this.pool.end(); }
 }
 
 export const guidanceEventType = (value: unknown): value is GuidanceEventType => typeof value === 'string' && (eventTypes as readonly string[]).includes(value);

@@ -285,6 +285,8 @@ Every endpoint validates payloads, authenticates the caller, checks run ownershi
 
 ## Task 4: Build authenticated backend and Tiger Data persistence
 
+**Current status (November 14, 2026):** A partial, optional Tiger Data adapter now stores explicitly saved journey summaries, consented coarse help events, and eligible cited public excerpts; see `workflow-3/src/tiger-data.ts` and `workflow-3/migrations/001_tiger_data.sql`. The full Mastra checkpoint remains in local LibSQL, and the current API uses a single configured owner rather than authenticated per-user identities. Tiger credentials, Bright Data collection, multi-user isolation, and the disposable database integration checks remain outstanding. Do not mark Task 4 or its acceptance complete yet.
+
 **Files:** API config/server/auth/routes/db modules, `migrations/001_initial.sql`, `tests/integration/api.test.ts`, `tests/integration/storage.test.ts`.
 
 **Interfaces:** `createRun(ownerId: string, task: string): Promise<Run>`; `loadRun(ownerId: string, runId: string): Promise<Run>`; `appendEvent(ownerId: string, event: ProgressEvent): Promise<void>`.
@@ -295,7 +297,7 @@ Every endpoint validates payloads, authenticates the caller, checks run ownershi
 - [ ] Write integration tests for run isolation, duplicate event ingestion, expired sessions, invalid payloads, and a database outage.
 - [ ] Implement short-lived pairing codes and revocable session tokens; document this as demo authentication. Restrict demo diagnostics and protect setup secrets.
 - [ ] Configure bounded timeouts, per-session rate limits, request-size limits, explicit allowed origins, and redacted logs. Avoid logging full tasks or request bodies by default.
-- [ ] Persist minimal workflow data. Recommended demo retention: 24 hours for task state/checkpoints, seven days for opt-in events; no raw audio persistence. Apply cleanup to checkpoints too.
+- [ ] Persist minimal workflow data. Current behavior: unsaved task access expires locally after one idle hour; explicitly saved journey summaries remain until deleted; consented events have seven-day retention; no raw audio is persisted to Tiger. Full checkpoint persistence/cleanup in Tiger remains open.
 - [ ] Implement an authenticated deletion path for a user's task data. Do not label pseudonymous events anonymous if they remain linkable.
 - [ ] Run migrations against a disposable database, then `npm run test:integration -- api storage`.
 

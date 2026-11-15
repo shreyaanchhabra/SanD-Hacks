@@ -1,86 +1,46 @@
-(function () {
-  if (window.top !== window.self || globalThis.__apMountTools) return;
-
-  const state = { appearance: null, simplified: false, matches: [], current: -1, task: "" };
-  const protectedWords = /error|invalid|required|deadline|due date|cost|fee|consent|privacy|security|official|help|cancel|back|return|recover/i;
-  const groups = new WeakMap();
-  let nextGroupId = 1;
-
-  function make(tag, text, className) {
-    const node = document.createElement(tag);
-    if (text !== undefined) node.textContent = text;
-    if (className) node.className = className;
-    return node;
+(() => {
+ if(window.top!==window.self||globalThis.__apMountTools)return;
+ const state={appearance:null,simplified:false,matches:[],current:-1,task:''};
+ const protectedWords=/error|invalid|required|deadline|due date|cost|fee|consent|privacy|security|official|help|cancel|back|return|recover/i;
+ const make=(tag,text,className)=>{const node=document.createElement(tag);if(text!==undefined)node.textContent=text;if(className)node.className=className;return node;};
+ const visible=element=>element instanceof Element&&!element.closest('#accesspatch-guide,[hidden],[aria-hidden="true"],[inert]')&&getComputedStyle(element).visibility!=='hidden'&&getComputedStyle(element).display!=='none'&&element.getClientRects().length>0;
+ function safeText(element,limit=100){
+  if(!element||!visible(element)||element.closest('input,select,textarea,[contenteditable]:not([contenteditable="false"]),[role="textbox"]'))return'';
+  const walker=document.createTreeWalker(element,NodeFilter.SHOW_TEXT);let text='',node;
+  while((node=walker.nextNode())&&text.length<limit*3)if(node.parentElement&&!node.parentElement.closest('input,select,textarea,script,style,[contenteditable]:not([contenteditable="false"]),[role="textbox"]')&&visible(node.parentElement))text+=' '+node.textContent;
+  return text.replace(/\s+/g,' ').trim().slice(0,limit);
+ }
+ function labelFor(element){
+  const labelled=(element.getAttribute('aria-labelledby')||'').split(/\s+/).filter(Boolean).map(id=>safeText(document.getElementById(id))).join(' ');
+  const label=Array.from(element.labels||[]).map(node=>safeText(node)).join(' ');
+  const heading=element.matches('a,button')?element.querySelector('h1,h2,h3,h4,h5,h6'):null;
+  const field=element.matches('input,select,textarea,[role="textbox"]');
+  return(labelled||element.getAttribute('aria-label')||label||safeText(heading)||(!field?safeText(element):'')).replace(/\s+/g,' ').trim().slice(0,96);
+ }
+ function terms(text){const stop=new Set(['the','and','for','with','help','find','how','can','this','that','want','need','please','would','like','have','your','page']);return text.toLowerCase().split(/\W+/).filter(word=>word.length>2&&!stop.has(word));}
+ function itemTextIncludes(text,word){return text.toLowerCase().includes(word);}
+ function clearHighlights(){document.querySelectorAll('.apc-hit,.apc-current').forEach(element=>element.classList.remove('apc-hit','apc-current'));state.matches=[];state.current=-1;}
+ function searchables(){
+  return Array.from(document.querySelectorAll('a[href],button,h1,h2,h3,h4,input,select,textarea,[role="textbox"]')).filter(visible).filter(e=>!e.matches('input[type="hidden"],input[type="password"]')).map(element=>{
+   const text=labelFor(element);const actionable=element.matches('a,button,input,select,textarea');
+   const container=element.closest('section,article,fieldset');const context=safeText(container?.querySelector('legend,h1,h2,h3,h4'),64)|| (element.closest('main,form,[role="main"]')?'Main content':'Page navigation');
+   const description=element.matches('a')?safeText(element.querySelector('p'),140):'';
+   return{element,text,context,description,type:element.matches('a')?'Link':element.matches('input,select,textarea')?'Field':element.matches('button')?'Button':'Heading',priority:(actionable?4:1)+(element.closest('main,form,[role="main"]')?2:0)};
+  }).filter(item=>item.text);
+ }
+ function search(query){
+  clearHighlights();const words=terms(query);if(!words.length)return[];
+  const grouped=new Map();
+  for(const item of searchables()){
+   const score=words.reduce((sum,word)=>sum+(itemTextIncludes(item.text,word)?4:0)+(itemTextIncludes(item.description,word)?1:0),0);if(!score)continue;
+   let key=item.text.toLowerCase()+(item.type==='Field'?'|'+item.context:'');if(item.element.matches('a')){try{const url=new URL(item.element.href);if(/^https?:$/.test(url.protocol))key=url.origin+url.pathname+url.hash;}catch{}}
+   const candidate={...item,score};const old=grouped.get(key);if(!old||score>old.score||score===old.score&&item.priority>old.priority)grouped.set(key,candidate);
   }
-
-  function visible(element) {
-    if (!(element instanceof Element) || element.closest("#accesspatch-companion-root,#accesspatch-guide")) return false;
-    const style = getComputedStyle(element);
-    const rect = element.getBoundingClientRect();
-    return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
-  }
-
-  function labelFor(element) {
-    if (element.labels?.length) return element.labels[0].textContent.trim();
-    if (element.getAttribute("aria-label")) return element.getAttribute("aria-label").trim();
-    if (element.getAttribute("aria-labelledby")) {
-      return element.getAttribute("aria-labelledby").split(/\s+/).map((id) => document.getElementById(id)?.textContent || "").join(" ").trim();
-    }
-    return (element.textContent || element.alt || "").replace(/\s+/g, " ").trim();
-  }
-
-  function searchables() {
-    return [...document.querySelectorAll("h1,h2,h3,h4,h5,h6,a,button,input,select,textarea,label,section,article")]
-      .filter(visible)
-      .map((element) => ({ element, text: labelFor(element).slice(0, 240), group: groupFor(element), priority: resultPriority(element) }))
-      .filter((item) => item.text);
-  }
-
-  function groupFor(element) {
-    const container = element.closest("section,article");
-    const anchor = container?.querySelector("h1,h2,h3,h4,h5,h6") || container || element;
-    if (!groups.has(anchor)) groups.set(anchor, `group-${nextGroupId++}`);
-    return groups.get(anchor);
-  }
-
-  function resultPriority(element) {
-    if (/^H[1-6]$/.test(element.tagName)) return 4;
-    if (element.matches("a,button,input,select,textarea")) return 3;
-    if (element.matches("label")) return 2;
-    return 1;
-  }
-
-  function terms(value) {
-    return value.toLowerCase().split(/\W+/).filter((word) => word.length > 2);
-  }
-
-  function search(value) {
-    clearHighlights();
-    state.task = value.trim();
-    const words = terms(state.task);
-    if (!words.length) return [];
-    const grouped = new Map();
-    for (const item of searchables().map((candidate) => ({ ...candidate, score: words.reduce((score, word) => score + (itemTextIncludes(candidate.text, word) ? 2 : 0), 0) })).filter((candidate) => candidate.score > 0)) {
-      const current = grouped.get(item.group);
-      if (!current || item.score > current.score || (item.score === current.score && item.priority > current.priority)) grouped.set(item.group, item);
-    }
-    const ranked = [...grouped.values()].sort((left, right) => right.score - left.score || right.priority - left.priority);
-    state.matches = ranked.map((item) => item.element);
-    state.matches.forEach((element) => element.classList.add("apc-hit"));
-    state.current = state.matches.length ? 0 : -1;
-    state.matches[0]?.classList.add("apc-current");
-    return ranked;
-  }
-
-  function itemTextIncludes(text, word) {
-    return text.toLowerCase().includes(word);
-  }
-
-  function clearHighlights() {
-    document.querySelectorAll(".apc-hit").forEach((element) => element.classList.remove("apc-hit", "apc-current"));
-    state.matches = []; state.current = -1;
-  }
-
+  const ranked=[...grouped.values()].sort((a,b)=>b.score-a.score||b.priority-a.priority);
+  // A heading and link with the same short title are one destination; prefer the link.
+  const names=new Map();for(const item of ranked){const key=item.text.toLowerCase()+(item.type==='Field'?'|'+item.context:'');const old=names.get(key);if(!old||item.priority>old.priority)names.set(key,item);}
+  const results=[...names.values()].sort((a,b)=>b.score-a.score||b.priority-a.priority).slice(0,5);state.matches=results.map(item=>item.element);return results;
+ }
   function importantImage(image) {
     if (!(image instanceof HTMLImageElement) || image.closest("#accesspatch-companion-root")) return false;
     if (image.closest("header,nav,footer,aside")) return false;
@@ -163,113 +123,38 @@
     if (state.appearance === "low-vision") applyLowVisionSurfaces();
   }
 
-  function renderResults(list, results, status) {
-    list.replaceChildren();
-    results.slice(0, 8).forEach(({ element, text }, index) => {
-      const item = make("li");
-      const focus = make("button", `Show: ${text.slice(0, 90)}`);
-      focus.addEventListener("click", () => {
-        state.current = index;
-        state.matches.forEach((candidate) => candidate.classList.remove("apc-current"));
-        element.classList.add("apc-current");
-        element.scrollIntoView({ block: "center", behavior: "smooth" });
-        status.textContent = "The matching page item is highlighted. Choose it yourself when ready.";
-      });
-      item.append(focus);
-      list.append(item);
-    });
+ function show(element,status){
+  if(!element?.isConnected||!visible(element)){status.textContent='This part of the page changed. Find it again.';return;}
+  clearHighlights();element.classList.add('apc-current');element.scrollIntoView({block:'center',behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'});status.textContent='Outlined on the original page. You choose the next action.';
+ }
+ globalThis.__apMountTools=container=>{
+  const root=make('div');root.id='accesspatch-companion-root';root.dataset.apcUi='true';
+  const panel=make('section',undefined,'apc-panel');panel.setAttribute('aria-label','Page compass');root.append(panel);container.append(root);
+  const taskNote=make('p','Local tools · no AI request','apc-task-note');panel.append(taskNote);
+  const label=make('label','Find a place on this page');const input=make('input');input.placeholder='Try “taxes” or a field name';input.setAttribute('type','search');label.append(input);panel.append(label);
+  const find=make('button','Find on page','primary');panel.append(find);
+  const status=make('p','','apc-status');status.setAttribute('role','status');panel.append(status);
+  const results=make('ul',undefined,'apc-results');panel.append(results);
+  const shortcuts=make('div',undefined,'apc-shortcuts');const required=make('button','Find required fields');const errors=make('button','Find visible errors');const current=make('button','Current step');shortcuts.append(required,errors,current);panel.append(shortcuts);
+  const reading=make('details');const summary=make('summary','Reading preferences');reading.append(summary);panel.append(reading);
+  const simplify=make('button','Simplify view'),easy=make('button','Easy Read'),low=make('button','Low Vision'),images=make('button','Describe important photos'),restore=make('button','Restore page');reading.append(simplify,easy,low,images);panel.append(restore);
+  const modeButtons={simplify,easy,low};for(const button of Object.values(modeButtons))button.setAttribute('aria-pressed','false');
+  const setModes=()=>{for(const[key,button]of Object.entries(modeButtons))button.setAttribute('aria-pressed',String(key==='simplify'?state.simplified:state.appearance===(key==='easy'?'easy-read':'low-vision')));};
+  function render(resultsData){
+   results.replaceChildren();for(const item of resultsData){const row=make('li',undefined,'apc-result');const copy=make('div');copy.append(make('span',item.type,'apc-kind'),make('strong',item.text,'apc-title'),make('span',item.context,'apc-context'));const button=make('button','Show');button.setAttribute('aria-label','Show '+item.text+(resultsData.filter(other=>other.text===item.text).length>1?' in '+item.context:''));button.addEventListener('click',event=>{if(event.isTrusted)show(item.element,status);});row.append(copy,button);results.append(row);}
+   status.textContent=resultsData.length?`${resultsData.length} distinct ${resultsData.length===1?'destination':'destinations'}. Choose one to locate it.`:'No matching controls or headings. Try a shorter topic or ask your companion.';
   }
-
-  function buildPanel(container) {
-    const root = make("div"); root.id = "accesspatch-companion-root"; root.dataset.apcUi = "true";
-    const panel = make("aside", null, "apc-panel"); panel.setAttribute("aria-label", "AccessPatch companion tools");
-    const header = make("div", null, "apc-panel-header");
-    const title = make("h2", "AccessPatch tools");
-    const collapse = make("button", "−", "apc-collapse");
-    collapse.type = "button"; collapse.setAttribute("aria-label", "Collapse AccessPatch tools"); collapse.setAttribute("aria-expanded", "true");
-    header.append(title, collapse);
-    panel.append(header, make("p", "Find and adjust this page while keeping every website action in your hands."));
-    const label = make("label", "Search the page");
-    const input = document.createElement("input"); input.placeholder = "Example: tax, deadline, required documents"; label.append(input); panel.append(label);
-    const status = make("p", "", "apc-status"); status.setAttribute("role", "status"); panel.append(status);
-    const results = make("ol", null, "apc-results"); panel.append(results);
-    const find = make("button", "Highlight matches", "primary");
-    const simplify = make("button", "Simplify view");
-    const easy = make("button", "Easy Read");
-    const low = make("button", "Low Vision");
-    const images = make("button", "Describe important photos");
-    const restore = make("button", "Restore page");
-    const hide = make("button", "Hide tools");
-    const modeButtons = { simplify, easy, low };
-    Object.values(modeButtons).forEach((button) => { button.type = "button"; button.setAttribute("aria-pressed", "false"); });
-    panel.append(find, simplify, easy, low, images, restore, hide); root.append(panel); container.append(root);
-
-    let dragStart = null;
-    header.addEventListener("pointerdown", (event) => {
-      if (event.target.closest("button")) return;
-      const rect = panel.getBoundingClientRect();
-      dragStart = { x: event.clientX, y: event.clientY, left: rect.left, top: rect.top };
-      panel.style.left = `${rect.left}px`; panel.style.top = `${rect.top}px`;
-      panel.style.right = "auto"; panel.style.bottom = "auto";
-      header.setPointerCapture(event.pointerId);
-    });
-    header.addEventListener("pointermove", (event) => {
-      if (!dragStart) return;
-      const rect = panel.getBoundingClientRect();
-      const left = Math.max(8, Math.min(window.innerWidth - rect.width - 8, dragStart.left + event.clientX - dragStart.x));
-      const top = Math.max(8, Math.min(window.innerHeight - rect.height - 8, dragStart.top + event.clientY - dragStart.y));
-      panel.style.left = `${left}px`; panel.style.top = `${top}px`;
-    });
-    header.addEventListener("pointerup", () => { dragStart = null; });
-    header.addEventListener("pointercancel", () => { dragStart = null; });
-    collapse.addEventListener("click", () => {
-      const collapsed = panel.classList.toggle("apc-collapsed");
-      collapse.textContent = collapsed ? "+" : "−";
-      collapse.setAttribute("aria-label", collapsed ? "Expand AccessPatch tools" : "Collapse AccessPatch tools");
-      collapse.setAttribute("aria-expanded", String(!collapsed));
-    });
-
-    function setModeButtons() {
-      const activeModes = { simplify: state.simplified, easy: state.appearance === "easy-read", low: state.appearance === "low-vision" };
-      Object.entries(modeButtons).forEach(([mode, button]) => {
-        button.classList.toggle("apc-selected", activeModes[mode]);
-        button.setAttribute("aria-pressed", String(activeModes[mode]));
-      });
-    }
-
-    function toggleSimplify() {
-      state.simplified = !state.simplified;
-      refreshPresentation();
-      setModeButtons();
-      status.textContent = state.simplified ? "Simplified view applied. Main content stays visible while safe secondary content is hidden." : "Simplified view is off.";
-    }
-
-    function toggleAppearance(mode, statusText) {
-      state.appearance = state.appearance === mode ? null : mode;
-      refreshPresentation();
-      setModeButtons();
-      status.textContent = state.appearance ? statusText : "The visual mode is off. Original colors and text sizing are restored.";
-    }
-
-    find.addEventListener("click", () => {
-      const ranked = search(input.value);
-      renderResults(results, ranked, status);
-      if (state.simplified) refreshPresentation();
-      status.textContent = ranked.length ? `${ranked.length} matching page item(s) highlighted.` : "No matching heading, link, field, or section was found.";
-    });
-    input.addEventListener("keydown", (event) => {
-      if (event.key !== "Enter") return;
-      event.preventDefault();
-      find.click();
-    });
-    simplify.addEventListener("click", toggleSimplify);
-    easy.addEventListener("click", () => { toggleAppearance("easy-read", "Easy Read applied: larger text and spacing without changing the page layout."); });
-    low.addEventListener("click", () => { toggleAppearance("low-vision", "Low Vision applied: dark surfaces, high contrast, and clearer links."); });
-    images.addEventListener("click", () => { const count = describeImages(); status.textContent = count ? `Added text descriptions for ${count} important image(s).` : "No important images with available descriptions were found."; });
-    restore.addEventListener("click", () => { clearHighlights(); state.appearance = null; state.simplified = false; refreshPresentation(); setModeButtons(); document.querySelectorAll(".apc-image-note").forEach((note) => note.remove()); status.textContent = "The page has been restored."; });
-    header.remove(); hide.remove();
-    return root;
-  }
-
-  globalThis.__apMountTools = container => buildPanel(container);
+  find.addEventListener('click',event=>{if(event.isTrusted)render(search(input.value));});
+  input.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();render(search(input.value));}});
+  function showFields(selector,message){const fields=Array.from(document.querySelectorAll(selector)).filter(visible);clearHighlights();if(!fields.length){status.textContent=message;results.replaceChildren();return;}render(fields.slice(0,5).map(element=>({element,text:labelFor(element)||'Unlabeled field',type:'Field',context:safeText(element.closest('fieldset')?.querySelector('legend'),64)||'Form'})));status.textContent=`${fields.length} fields marked by this page. Filled answers are not read.`;}
+  required.addEventListener('click',()=>showFields('input[required],select[required],textarea[required],[aria-required="true"]','No required fields are marked on this page.'));
+  errors.addEventListener('click',()=>showFields('[aria-invalid="true"]','No fields are currently marked invalid by this page.'));
+  current.addEventListener('click',()=>{try{if(!globalThis.__apPageActions?.showCurrent)throw new Error();globalThis.__apPageActions.showCurrent();}catch{status.textContent='Ask your companion for a current step first.';}});
+  simplify.addEventListener('click',()=>{state.simplified=!state.simplified;refreshPresentation();setModes();status.textContent=state.simplified?'Unrelated sections reduced. Restore page is always available.':'Simplification off.';});
+  for(const[button,mode]of [[easy,'easy-read'],[low,'low-vision']])button.addEventListener('click',()=>{state.appearance=state.appearance===mode?null:mode;refreshPresentation();setModes();status.textContent=state.appearance?'Reading preference applied.':'Original reading style restored.';});
+  images.addEventListener('click',()=>{const count=describeImages();status.textContent=`${count} existing image descriptions shown. Image pixels were not analyzed.`;});
+  restore.addEventListener('click',()=>{clearHighlights();state.appearance=null;state.simplified=false;refreshPresentation();setModes();document.querySelectorAll('.apc-image-note').forEach(note=>note.remove());status.textContent='Original page restored.';});
+  globalThis.__apSetTask=task=>{state.task=String(task||'');taskNote.textContent=state.task?'For your task · '+state.task.slice(0,90):'Local tools · no AI request';};
+  return root;
+ };
 })();

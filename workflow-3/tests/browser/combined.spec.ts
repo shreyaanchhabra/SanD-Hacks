@@ -25,7 +25,7 @@ async function setup(page, planner?, revealClosed = true, speech?, follow = fals
  },revealClosed);
  await page.goto('http://127.0.0.1:4320');
  const injectGuide=async()=>{await page.addStyleTag({path:path.resolve('../combined-extension/tools.css')});
- for(const file of ['page-map.js','tools.js','guide.js'])await page.addScriptTag({path:path.resolve('../combined-extension',file)});
+ for(const file of ['fingerprint.js','page-map.js','tools.js','guide.js'])await page.addScriptTag({path:path.resolve('../combined-extension',file)});
  };await injectGuide();
  if(revealClosed)await expect(page.locator('#accesspatch-guide').getByText('Demo mode:',{exact:false})).toBeVisible();
  return {calls,storage,injectGuide};
@@ -33,7 +33,7 @@ async function setup(page, planner?, revealClosed = true, speech?, follow = fals
 async function expandMore(page){const more=page.locator('#accesspatch-guide .more');if(!await more.evaluate(el=>el.open))await more.locator('summary').click();}
 test('one panel connects the mascot bubble, page mapper, Mastra and reversible highlight',async({page})=>{
  const {calls}=await setup(page);const guide=page.locator('#accesspatch-guide');
- await guide.getByLabel('What would you like to do?').fill('Help with my energy bill');
+ await guide.getByLabel('Your task').fill('Help with my energy bill');
 
  await guide.getByRole('button',{name:'Start guiding',exact:true}).click();
  await expect(guide.locator('.bubble')).toContainText('Select “Energy bill assistance”.');
@@ -51,7 +51,7 @@ test('one panel connects the mascot bubble, page mapper, Mastra and reversible h
 test('screenshot cancel sends nothing; only the previewed crop reaches planning once',async({page})=>{
  const images=[];
  const {calls,storage}=await setup(page,async input=>{images.push(input.screenshot);return{kind:'guidance',instruction:'Read the heading in your crop.',explanation:'Visual guidance for the selected region.',visualObservation:'The crop shows an energy assistance heading.',targetId:input.screenshot?null:input.snapshot.elements[0].id,sourceIds:[],expectedOutcome:'user-confirmation'};});
- const guide=page.locator('#accesspatch-guide');await guide.getByLabel('What would you like to do?').fill('Explain this form');
+ const guide=page.locator('#accesspatch-guide');await guide.getByLabel('Your task').fill('Explain this form');
  await expandMore(page);await guide.getByRole('button',{name:'Help with what I’m seeing',exact:true}).click();
  await expect(guide.getByRole('dialog')).toBeVisible();
  await guide.getByRole('button',{name:'Cancel',exact:true}).click();
@@ -75,7 +75,7 @@ test('screenshot cancel sends nothing; only the previewed crop reaches planning 
 test('delayed guide replies are withheld after a structural page change',async({page})=>{
  let release;const waiting=new Promise(resolve=>{release=resolve;});
  const {calls}=await setup(page,async input=>{await waiting;return{kind:'guidance',instruction:'STALE_GUIDANCE',explanation:'Old label',targetId:input.snapshot.elements[0].id,sourceIds:[],expectedOutcome:'navigation'};});
- const guide=page.locator('#accesspatch-guide');await guide.getByLabel('What would you like to do?').fill('energy bill');
+ const guide=page.locator('#accesspatch-guide');await guide.getByLabel('Your task').fill('energy bill');
  await guide.getByRole('button',{name:'Start guiding',exact:true}).click();
  await expect.poll(()=>calls.some(c=>c.path==='/api/tasks')).toBe(true);
  await page.locator('#energy').evaluate(el=>{el.textContent='Changed link';});release();
@@ -85,7 +85,7 @@ test('delayed guide replies are withheld after a structural page change',async({
 });
 test('a cropped screenshot becomes invalid after scrolling before approval',async({page})=>{
  const {calls}=await setup(page);const guide=page.locator('#accesspatch-guide');
- await guide.getByLabel('What would you like to do?').fill('Explain this form');
+ await guide.getByLabel('Your task').fill('Explain this form');
  await expandMore(page);await guide.getByRole('button',{name:'Help with what I’m seeing',exact:true}).click();
  await guide.getByRole('button',{name:'Preview crop',exact:true}).click();
  await page.evaluate(()=>{document.body.style.minHeight='3000px';window.scrollTo(0,100);});
@@ -102,7 +102,7 @@ test('host pages cannot inspect guide internals or synthesize screenshot approva
 });
 test('synthetic button clicks cannot capture or send screenshots even with a leaked root',async({page})=>{
  const {calls}=await setup(page);const guide=page.locator('#accesspatch-guide');
- await guide.getByLabel('What would you like to do?').fill('Help with this form');
+ await guide.getByLabel('Your task').fill('Help with this form');
  await expandMore(page);await guide.getByRole('button',{name:'Help with what I’m seeing',exact:true}).evaluate(el=>el.click());
  expect(calls.filter(c=>c.type==='capture')).toHaveLength(0);
  await expandMore(page);await guide.getByRole('button',{name:'Help with what I’m seeing',exact:true}).click();
@@ -115,7 +115,7 @@ test('synthetic button clicks cannot capture or send screenshots even with a lea
 test('visual replies are withheld when a form answer changes during planning',async({page})=>{
  let release;const wait=new Promise(resolve=>{release=resolve;});
  const {calls}=await setup(page,async()=>{await wait;return{kind:'guidance',instruction:'STALE_VISUAL_REPLY',explanation:'Visual details',targetId:null,sourceIds:[],expectedOutcome:'user-confirmation'};});
- const guide=page.locator('#accesspatch-guide');await guide.getByLabel('What would you like to do?').fill('Explain this form');
+ const guide=page.locator('#accesspatch-guide');await guide.getByLabel('Your task').fill('Explain this form');
  await expandMore(page);await guide.getByRole('button',{name:'Help with what I’m seeing',exact:true}).click();
  await guide.getByRole('button',{name:'Preview crop',exact:true}).click();
  await guide.getByRole('button',{name:'Share crop & ask guide'}).click();
@@ -127,7 +127,7 @@ test('visual replies are withheld when a form answer changes during planning',as
 test('late speech responses cannot overlap and pause cancels pending playback',async({page})=>{
  const pending=[];
  await setup(page,undefined,true,{mode:'test',speak:()=>new Promise(resolve=>pending.push(resolve))});
- const guide=page.locator('#accesspatch-guide');await guide.getByLabel('What would you like to do?').fill('energy bill');
+ const guide=page.locator('#accesspatch-guide');await guide.getByLabel('Your task').fill('energy bill');
  await guide.getByRole('button',{name:'Start guiding',exact:true}).click();
  await expect(guide.locator('.bubble')).toContainText('Select');
  await page.evaluate(()=>{globalThis.playCount=0;globalThis.Audio=class{constructor(){}pause(){}play(){globalThis.playCount++;return Promise.resolve();}};});
@@ -148,10 +148,11 @@ test('one tools menu and a separate left mascot travel beside a target without c
  expect(await page.evaluate(()=>document.getElementById('accesspatch-companion-root'))).toBe(null);
  await expect(guide.getByRole('button',{name:'Page tools',exact:true})).toHaveCount(0);
  await guide.getByRole('button',{name:'Tools & settings',exact:true}).click();
+ await guide.getByText('Reading preferences',{exact:true}).click();
  await expect(guide.getByRole('button',{name:'Easy Read',exact:true})).toBeVisible();
  await guide.getByRole('button',{name:'Tools & settings',exact:true}).click();
  const home=await guide.locator('.companion').boundingBox();expect(home.x).toBeLessThan(50);
- await guide.getByLabel('What would you like to do?').fill('energy bill');
+ await guide.getByLabel('Your task').fill('energy bill');
  await guide.getByRole('button',{name:'Start guiding',exact:true}).click();
  await expect(guide.locator('.bubble')).toContainText('Select');
  await guide.getByRole('button',{name:'Show me',exact:true}).click();
@@ -168,7 +169,7 @@ test('one tools menu and a separate left mascot travel beside a target without c
 });
 test('reduced motion keeps the mascot stationary and disables pointer animation',async({page})=>{
  await page.emulateMedia({reducedMotion:'reduce'});await setup(page);const guide=page.locator('#accesspatch-guide');
- await guide.getByLabel('What would you like to do?').fill('energy bill');
+ await guide.getByLabel('Your task').fill('energy bill');
  await guide.getByRole('button',{name:'Start guiding',exact:true}).click();
  await expect(guide.locator('.bubble')).toContainText('Select');
  await guide.getByRole('button',{name:'Show me',exact:true}).click();
@@ -179,7 +180,7 @@ test('reduced motion keeps the mascot stationary and disables pointer animation'
 test('mascot continuation reviews before sharing and stuck questions reach planning',async({page})=>{
  const seen=[];
  const {calls}=await setup(page,async input=>{seen.push(input);return{kind:'guidance',instruction:'Select Energy bill assistance.',explanation:'Test explanation',targetId:input.snapshot.elements[0].id,sourceIds:[],expectedOutcome:'navigation'};});
- const guide=page.locator('#accesspatch-guide');await guide.getByLabel('What would you like to do?').fill('energy bill');
+ const guide=page.locator('#accesspatch-guide');await guide.getByLabel('Your task').fill('energy bill');
  await guide.getByRole('button',{name:'Start guiding',exact:true}).click();
  await expect(guide.locator('.bubble')).toContainText('Select');
  await guide.getByRole('button',{name:'Continue',exact:true}).click();
@@ -203,7 +204,7 @@ test('a manual still setting prevents travel and tools are in one keyboard-opera
  await guide.getByRole('button',{name:'Talk to your companion',exact:true}).click();
  await expect(guide.getByLabel('Conversation with your guide',{exact:true})).toBeHidden();
  await guide.getByRole('button',{name:'Talk to your companion',exact:true}).click();
- await expect(guide.getByLabel('What would you like to do?',{exact:true})).toBeFocused();
+ await expect(guide.getByLabel('Your task',{exact:true})).toBeFocused();
 });
 
 test('reduced-motion mascot still renders after its animation asset loads late',async({page})=>{
@@ -217,7 +218,7 @@ test('reduced-motion mascot still renders after its animation asset loads late',
 test('narrow screens keep a bottom-left target operable when the bubble cannot fit',async({page})=>{
  await page.setViewportSize({width:390,height:700});await setup(page);const guide=page.locator('#accesspatch-guide');
  await page.locator('#energy').evaluate(el=>{el.style.position='fixed';el.style.left='10px';el.style.bottom='20px';});
- await guide.getByLabel('What would you like to do?').fill('energy bill');
+ await guide.getByLabel('Your task').fill('energy bill');
  await guide.getByRole('button',{name:'Start guiding',exact:true}).click();
  await expect(guide.locator('.bubble')).toContainText('Select');
  await guide.getByRole('button',{name:'Show me',exact:true}).click();
@@ -230,7 +231,7 @@ test('narrow screens keep a bottom-left target operable when the bubble cannot f
 test('stationary mode moves the bubble aside when the highlighted target is underneath it',async({page})=>{
  await page.emulateMedia({reducedMotion:'reduce'});await setup(page);const guide=page.locator('#accesspatch-guide');
  await page.locator('#energy').evaluate(el=>{el.style.position='fixed';el.style.left='20px';el.style.bottom='30px';});
- await guide.getByLabel('What would you like to do?').fill('energy bill');
+ await guide.getByLabel('Your task').fill('energy bill');
  await guide.getByRole('button',{name:'Start guiding',exact:true}).click();
  await expect(guide.locator('.bubble')).toContainText('Select');await guide.getByRole('button',{name:'Show me',exact:true}).click();
  await page.locator('#energy').click({trial:true});
@@ -239,7 +240,7 @@ test('stationary mode moves the bubble aside when the highlighted target is unde
 
 test('linked-page navigation automatically continues the original task without another start click',async({page})=>{
  const {calls,storage,injectGuide}=await setup(page,undefined,true,undefined,true);
- const guide=page.locator('#accesspatch-guide');await guide.getByLabel('What would you like to do?').fill('Help with my energy bill');
+ const guide=page.locator('#accesspatch-guide');await guide.getByLabel('Your task').fill('Help with my energy bill');
  await guide.getByRole('button',{name:'Start guiding',exact:true}).click();await expect(guide.locator('.bubble')).toContainText('Select');
  const runId=storage.state.runId;
  await page.locator('#energy').click();await page.waitForURL('**/form?**');await injectGuide();
@@ -249,7 +250,7 @@ test('linked-page navigation automatically continues the original task without a
 });
 test('same-page route changes continue automatically but pause prevents another model call',async({page})=>{
  const {calls}=await setup(page,undefined,true,undefined,true);const guide=page.locator('#accesspatch-guide');
- await guide.getByLabel('What would you like to do?').fill('energy bill');await guide.getByRole('button',{name:'Start guiding',exact:true}).click();await expect(guide.locator('.bubble')).toContainText('Select');
+ await guide.getByLabel('Your task').fill('energy bill');await guide.getByRole('button',{name:'Start guiding',exact:true}).click();await expect(guide.locator('.bubble')).toContainText('Select');
  await page.evaluate(()=>{document.getElementById('energy').remove();history.pushState({},'', '/form');});
  await expect(guide.locator('.bubble')).toContainText('Read the instructions beside “Household”.');
  await expandMore(page);await guide.getByRole('button',{name:'Pause',exact:true}).click();const count=calls.filter(c=>c.body?.type==='navigation-observed'||c.body?.type==='page-updated').length;
@@ -261,7 +262,7 @@ test('same-page route changes continue automatically but pause prevents another 
 test('cross-origin linked pages retain the task and deliver the next instruction automatically',async({page})=>{
  const {storage,injectGuide}=await setup(page,undefined,true,undefined,true);const guide=page.locator('#accesspatch-guide');
  await page.locator('#energy').evaluate(el=>el.href='http://localhost:4320/form');
- await guide.getByLabel('What would you like to do?').fill('energy bill');await guide.getByRole('button',{name:'Start guiding',exact:true}).click();
+ await guide.getByLabel('Your task').fill('energy bill');await guide.getByRole('button',{name:'Start guiding',exact:true}).click();
  await expect(guide.locator('.bubble')).toContainText('Select');const runId=storage.state.runId;
  await page.locator('#energy').click();await page.waitForURL('http://localhost:4320/form');await injectGuide();
  await expect(guide.locator('.bubble')).toContainText('Household');expect(storage.state.runId).toBe(runId);
@@ -269,8 +270,40 @@ test('cross-origin linked pages retain the task and deliver the next instruction
 
 test('automatic continuation retries a temporary failure without forgetting the goal',async({page})=>{
  const {calls}=await setup(page,undefined,true,undefined,true,true);const guide=page.locator('#accesspatch-guide');
- await guide.getByLabel('What would you like to do?').fill('energy bill');await guide.getByRole('button',{name:'Start guiding',exact:true}).click();await expect(guide.locator('.bubble')).toContainText('Select');
+ await guide.getByLabel('Your task').fill('energy bill');await guide.getByRole('button',{name:'Start guiding',exact:true}).click();await expect(guide.locator('.bubble')).toContainText('Select');
  await page.evaluate(()=>{document.getElementById('energy').remove();history.pushState({},'', '/form');});
  await expect(guide.locator('.bubble')).toContainText('Household',{timeout:12000});
  expect(calls.filter(c=>c.automatic&&c.path?.endsWith('/events')).length).toBe(2);
+});
+
+test('page compass shows concise distinct destinations instead of repeating section text',async({page})=>{
+ const {calls}=await setup(page);const guide=page.locator('#accesspatch-guide');
+ await page.evaluate(()=>{const main=document.createElement('main');main.innerHTML='<section><h2>Money and credit</h2><a href="/money"><h3>Money and credit</h3><p>Find government grants, loans, and taxes information.</p></a></section><section><h2>Taxes</h2><a href="/taxes"><h3>Taxes</h3><p>Learn about filing federal income tax. Find out how to pay and check your refund.</p></a></section><nav><a href="/taxes">Taxes</a></nav>';document.body.append(main);});
+ await guide.getByRole('button',{name:'Tools & settings',exact:true}).click();
+ await guide.getByLabel('Find a place on this page',{exact:true}).fill('taxes');await guide.getByRole('button',{name:'Find on page',exact:true}).click();
+ const titles=await guide.locator('.apc-title').allTextContents();expect(titles.filter(t=>t==='Taxes')).toHaveLength(1);expect(titles.every(t=>t.length<97)).toBe(true);
+ expect(titles.some(t=>t.includes('Learn about filing'))).toBe(false);await expect(guide.getByRole('button',{name:'Show Taxes',exact:true})).toHaveCount(1);
+ const before=await page.url();await guide.getByRole('button',{name:'Show Taxes',exact:true}).click();expect(page.url()).toBe(before);
+ expect(calls.filter(c=>c.path&&c.path!=='/api/health')).toHaveLength(0);
+ if(process.env.CAPTURE_EVIDENCE)await page.screenshot({path:'/tmp/accesspatch-page-compass.png'});
+});
+test('form shortcuts locate required and invalid fields locally without model calls',async({page})=>{
+ const {calls}=await setup(page);const guide=page.locator('#accesspatch-guide');
+ await page.locator('#household').evaluate(el=>{el.required=true;el.setAttribute('aria-invalid','true');});
+ await guide.getByRole('button',{name:'Tools & settings',exact:true}).click();await guide.getByRole('button',{name:'Find required fields',exact:true}).click();
+ await expect(guide.getByRole('button',{name:'Show Household',exact:true})).toBeVisible();
+ await guide.getByRole('button',{name:'Find visible errors',exact:true}).click();await expect(guide.getByRole('button',{name:'Show Household',exact:true})).toBeVisible();
+ expect(calls.filter(c=>c.path&&c.path!=='/api/health')).toHaveLength(0);
+});
+test('observed evidence and expected progress are distinct from the suggested instruction',async({page})=>{
+ await setup(page,async input=>({kind:'guidance',instruction:'Read Household.',explanation:'This field groups household information.',targetId:input.snapshot.elements[0].id,sourceIds:[],expectedOutcome:'user-confirmation',observations:[{text:'The page contains a Household field.',basis:'page',elementId:null}],changeSummary:null,completionEvidence:{type:'user-confirmation',description:'The person confirms reading the label.',elementId:null}}));
+ const guide=page.locator('#accesspatch-guide');await guide.getByLabel('Your task').fill('Explain this form');await guide.getByRole('button',{name:'Start guiding',exact:true}).click();
+ await expect(guide.locator('.bubble')).toContainText('Read Household.');await guide.getByText('Why this step?',{exact:true}).click();
+ await expect(guide.getByLabel('Observed page facts')).toContainText('contains a Household field');await expect(guide.locator('.reasoning')).toContainText('What to look for:');
+});
+test('same-name fields remain distinct across form groups in local search',async({page})=>{
+ await setup(page);const guide=page.locator('#accesspatch-guide');
+ await page.evaluate(()=>{const form=document.createElement('form');form.innerHTML='<fieldset><legend>Applicant</legend><label for="adult-name">First name</label><input id="adult-name"></fieldset><fieldset><legend>Child</legend><label for="child-name">First name</label><input id="child-name"></fieldset>';document.body.append(form);});
+ await guide.getByRole('button',{name:'Tools & settings',exact:true}).click();await guide.getByLabel('Find a place on this page').fill('first name');await guide.getByRole('button',{name:'Find on page',exact:true}).click();
+ await expect(guide.getByRole('button',{name:'Show First name in Applicant',exact:true})).toBeVisible();await expect(guide.getByRole('button',{name:'Show First name in Child',exact:true})).toBeVisible();
 });

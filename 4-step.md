@@ -72,6 +72,8 @@ Starting reference: `/Users/shreyaanchhabra/Downloads/SanD-Hacks-main/accesspatc
 
 **First demo:** Collect one real public page through Bright Data, save it in Tiger Data, and display its source and a few sample task events.
 
+**Implementation status (November 14, 2026):** The backend now has an optional Tiger PostgreSQL adapter and migration. The combined extension can explicitly save/list/delete journey summaries and can opt into coarse help events; events expire after seven days. Full Mastra checkpoints still stay in local `.data`, and saved-task resume requires that same data directory. No Tiger credentials or Bright Data adapter are configured, and the source/demo-evidence portion of the first demo is still outstanding. See [Workflow 3 setup and limits](workflow-3/README.md) for the environment variables and current single-owner limitation.
+
 ## Connecting the four parts
 
 - Start with one government financial-assistance task and a fictional application form. Choose the exact example together.
