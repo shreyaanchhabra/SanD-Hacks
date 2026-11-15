@@ -4,6 +4,11 @@ import { createApi } from '../src/api.js';
 import { startPage } from '../src/fixtures.js';
 const api = createApi({ token: 'test-local-token' });
 const request = (path: string, body?: unknown, token = 'test-local-token') => new Request(`http://127.0.0.1:4313${path}`, { method: body ? 'POST' : 'GET', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, ...(body ? { body: JSON.stringify(body) } : {}) });
+test('root landing response explains how to use the protected local API', async () => {
+  const response = await api(request('/'));
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).status, 'running');
+});
 test('API denies unauthenticated callers and hostile browser origins', async () => {
   assert.equal((await api(request('/api/health', undefined, 'wrong'))).status, 401);
   const req = request('/api/health'); req.headers.set('Origin', 'https://evil.example');
