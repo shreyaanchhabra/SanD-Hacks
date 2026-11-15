@@ -5,7 +5,7 @@ import { configuredService } from './config.js';
 const token = process.env.LOCAL_API_TOKEN ?? randomBytes(24).toString('hex');
 const port = Number(process.env.PORT ?? 4313);
 if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('Invalid PORT');
-const service = configuredService();
+const service = await configuredService();
 const handle = createApi({ token, service, allowedExtensionOrigin: process.env.ALLOWED_EXTENSION_ORIGIN });
 const server = createServer(async (req, res) => {
   try {

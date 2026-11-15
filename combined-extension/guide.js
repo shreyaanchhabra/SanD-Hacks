@@ -26,6 +26,10 @@
  const toolContent=make('div',null,menu,{className:'tool-content'});const mountedTools=globalThis.__apMountTools(toolContent);
  for(const button of mountedTools.querySelectorAll('button'))if(button.textContent==='Restore page')button.addEventListener('click',()=>{map({type:'restore'});returnHome();stopAudio();});
  const motionLabel=make('label',null,menu,{className:'mode'});const motion=make('input',null,motionLabel,{type:'checkbox'});motionLabel.append(document.createTextNode('Keep mascot still'));
+ const analyticsLabel=make('label',null,menu,{className:'mode'});const analyticsConsent=make('input',null,analyticsLabel,{type:'checkbox'});analyticsLabel.append(document.createTextNode('Share anonymous help events (off by default)'));
+ make('p','Only coarse help signals are sent. No page text, URLs, or form values are included.',menu,{className:'subtle'});
+ const saveTask=make('button','Save this task',menu,{hidden:true});make('p','Saving stores your goal and milestone in Tiger Data until you delete it. Page details stay in this browser’s local checkpoint.',menu,{className:'subtle'});
+ const savedDetails=make('details',null,menu);make('summary','Saved tasks',savedDetails);const savedList=make('div',null,savedDetails,{className:'actions'});const savedStatus=make('p','',savedDetails,{className:'subtle'});
  const footer=make('div',null,menu,{className:'actions'});const restore=make('button','Remove highlight',footer),reopen=make('button','Show companion',footer),reset=make('button','New task',footer),settings=make('button','Connection',footer),close=make('button','Hide companion',footer);
  const companion=make('section',null,shadow,{className:'companion'});companion.dataset.location='home';companion.setAttribute('aria-label','AccessPatch companion');
  const mascot=make('div',null,companion,{className:'mascot'});const mascotButton=make('button',null,mascot,{className:'mascot-button'});mascotButton.setAttribute('aria-label','Talk to your companion');mascotButton.title='Talk to your companion';
@@ -55,7 +59,7 @@
  let needsReview=false,followTask=false,followAllowed=false,autoTimer,lastAutoKey,autoRetryKey,autoRetryAt=0,autoAttempts=0,autoInFlight=false;let requestStartedAt=0;let imageFeedback;
  let state, reviewed, busy=false, epoch=0, speechEpoch=0, audio, imageDialog, visualStamp;
  const rpc=async message=>{const response=await chrome.runtime.sendMessage(message);if(!response?.ok)throw new Error(response?.error||'The guide could not connect.');return response.result;};
- const api=(path,body,automatic=false)=>rpc({type:'api',path,autoFollow:followTask,automatic,...(body===undefined?{}:{body})});
+ const api=(path,body,automatic=false,method)=>rpc({type:'api',path,autoFollow:followTask,automatic,...(method?{method}:{}),...(body===undefined?{}:{body})});
  const map=message=>{const result=globalThis.__apMapper(message);if(!result?.ok)throw new Error(result?.error||'This page could not be read.');return result.snapshot ?? result.bounds;};
  const snap=()=>map({type:'snapshot'});
  let inputVersion=0;document.addEventListener('input',event=>{if(event.target!==host)inputVersion++;},true);document.addEventListener('change',event=>{if(event.target!==host)inputVersion++;},true);
@@ -63,7 +67,7 @@
  const same=(a,b)=>a&&b&&a.pageId===b.pageId&&a.revision===b.revision;
  const current=()=>state&&same(state,reviewed)&&(!visualStamp||visualStamp===stamp());
  const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)');
- let targetRef, helpMode=false;
+ let targetRef, helpMode=false,lastLostTargetRun;
  const still=()=>motion.checked||reducedMotion.matches;
  function setExpression(mode){
   character.setAttribute('mood',mode==='thinking'?'35':mode==='ready'?'78':'55');
@@ -89,7 +93,7 @@
   if(!targetRef||still())return;
   try{
    const rect=map({type:'target',...targetRef});
-   if(rect.bottom<=0||rect.top>=innerHeight||rect.right<=0||rect.left>=innerWidth){returnHome();return;}
+   if(rect.bottom<=0||rect.top>=innerHeight||rect.right<=0||rect.left>=innerWidth){if(lastLostTargetRun!==state?.runId){lastLostTargetRun=state?.runId;analytics('lost_target');}returnHome();return;}
    home.hidden=false;
    const size=companion.getBoundingClientRect(),gap=18,margin=12;
    const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
@@ -102,7 +106,7 @@
    const spot=options.find(p=>p.x>=margin&&p.y>=margin&&p.x+size.width<=innerWidth-margin&&p.y+size.height<=innerHeight-margin);
    if(!spot){
     if(allowCollapse&&!panel.hidden){moveConversationAside(rect);if(panel.hidden){placeBesideTarget(false);return;}}
-    returnHome();moveConversationAside(rect);status.textContent='The control is outlined. Open your companion from Tools & settings when ready.';return;
+    if(lastLostTargetRun!==state?.runId){lastLostTargetRun=state?.runId;analytics('lost_target');}returnHome();moveConversationAside(rect);status.textContent='The control is outlined. Open your companion from Tools & settings when ready.';return;
    }
    // Pin the current home position before changing bottom anchoring, so the transition starts at home.
    if(companion.dataset.location!=='target'){
@@ -129,15 +133,18 @@
   if(!still())setExpression(busy?'thinking':result?'ready':'idle');
   explanation.textContent=result?.explanation||'';if(!result)explanation.hidden=true;
   sourceList.replaceChildren();for(const source of result?state.sources||[]:[]){if(!/^https?:\/\//.test(source.url))continue;const li=make('li',null,sourceList);make('a',source.synthetic?'Demo source':'Official context',li,{href:source.url,target:'_blank',rel:'noopener noreferrer'});}
-  for(const button of [inspect,send,highlight,explain,repeat,pause,screenshot,reset,stuck])button.disabled=busy;
+  for(const button of [inspect,send,highlight,explain,repeat,pause,screenshot,reset,stuck,saveTask])button.disabled=busy;
   send.disabled=busy||state?.status==='paused';
   send.textContent=!state?'Start guiding':state.status==='clarifying'?'Send answer':'Continue';
   highlight.disabled=busy||!valid||result.kind!=='guidance'||!result.targetId;
   explain.disabled=busy||!valid||!result.explanation;
   repeat.disabled=busy||!valid;
   pause.disabled=!state;pause.textContent=state?.status==='paused'?'Resume':'Pause';
+  saveTask.hidden=!state||!globalThis.__apTigerConnected;
+  saveTask.textContent=state?.savedForLater?'Delete saved task':'Save this task';
  }
  async function save(){await rpc({type:'save',state,task:task.value,visualStamp,keepStill:motion.checked,autoFollow:followTask});}
+ async function analytics(type,provider){if(!analyticsConsent.checked)return;const journeyText=(task.value||state?.task||'').toLowerCase(),stepText=[state?.stage,state?.result?.instruction,state?.result?.question].filter(Boolean).join(' ').toLowerCase();const journeyCategory=/health|medical|clinic/.test(journeyText)?'healthcare':/school|college|education|student/.test(journeyText)?'education':/benefit|bill|assistance|application|apply/.test(journeyText)?'benefits':/account|sign.?up|register/.test(journeyText)?'account-setup':'other';const stepCategory=/eligib/.test(stepText)?'eligibility':/document|upload|attach/.test(stepText)?'documents':/identity|name|birth|ssn/.test(stepText)?'identity':/email|phone|contact|address/.test(stepText)?'contact':/review|confirm|check/.test(stepText)?'review':/submit|send|finish/.test(stepText)?'submission':/button|link|menu|select|navigate/.test(stepText)?'navigation':'unknown';try{await api('/api/analytics/events',{consent:true,eventId:crypto.randomUUID(),type,journeyCategory,stepCategory,...(provider?{provider}:{})});}catch{}}
  function on(button,fn){button.addEventListener('click',async event=>{if(!event.isTrusted)return;try{await fn();}catch(error){status.textContent=error.message;}finally{render();}});}
  function review(){returnHome();stopAudio();reviewed=snap();preview.textContent=JSON.stringify(reviewed,null,2);status.textContent=`${reviewed.elements.length} labeled controls captured locally. Review the context before sharing.`;explanation.hidden=true;render();}
  async function requestGuidance(image,imageStamp,observedType){
@@ -160,10 +167,17 @@
    state=next;more.open=false;imageFeedback=undefined;helpMode=false;needsReview=false;visualStamp=imageStamp;answer.value='';await save();
    if(!same(state,snap())||(visualStamp&&visualStamp!==stamp())){reviewed=undefined;returnHome();map({type:'restore'});status.textContent='The page changed while I was thinking. Review it again.';}
    else status.textContent='Your next step is ready. Take your time.';
-  }catch(error){if(image){imageFeedback={badge:'Image analysis failed',finding:error.message};}throw error;}finally{if(generation===epoch){busy=false;render();}}
+  }catch(error){if(image){imageFeedback={badge:'Image analysis failed',finding:error.message};}analytics('provider_failure',globalThis.__apProvider||'mastra');throw error;}finally{if(generation===epoch){busy=false;render();}}
  }
  on(inspect,review);
  on(enableFollow,()=>rpc({type:'open-settings'}));
+ analyticsConsent.addEventListener('change',async()=>{await chrome.storage.local.set({analyticsConsent:analyticsConsent.checked});if(!analyticsConsent.checked&&globalThis.__apTigerConnected)try{await api('/api/analytics/events',undefined,false,'DELETE');}catch{status.textContent='Analytics is off. Could not remove previously saved events while Tiger Data is unavailable.';}});
+ on(saveTask,async()=>{
+  if(!state)return;
+  if(state.savedForLater){await api(`/api/saved-journeys/${state.runId}`,undefined,false,'DELETE');state=undefined;task.value='';await rpc({type:'reset'});status.textContent='Saved task deleted. Ready for a new task.';return;}
+  await api(`/api/tasks/${state.runId}/save`,{consent:true});state.savedForLater=true;await save();status.textContent='Saved. You can return to it from Saved tasks.';
+ });
+ savedDetails.addEventListener('toggle',async()=>{if(!savedDetails.open)return;savedList.replaceChildren();try{const journeys=await api('/api/saved-journeys');savedStatus.textContent=journeys.length?`${journeys.length} saved task${journeys.length===1?'':'s'}.`: 'No saved tasks yet.';for(const journey of journeys){const item=make('button',journey.goal,savedList);item.title=`${journey.milestone} · saved ${new Date(journey.updatedAt).toLocaleDateString()}`;item.addEventListener('click',async()=>{try{state=await api(`/api/tasks/${journey.id}`);state.savedForLater=true;task.value=state.task||journey.goal;reviewed=undefined;await save();status.textContent='Saved task restored. Review the current page before continuing.';savedDetails.open=false;render();}catch(error){savedStatus.textContent=`Could not resume this task: ${error.message}`;}});}}catch(error){savedStatus.textContent=`Could not load saved tasks: ${error.message}`;}});
  followToggle.addEventListener('change',async()=>{followTask=followToggle.checked&&followAllowed;await save();});on(send,()=>{reviewed=snap();return requestGuidance();});
  on(highlight,()=>{
   menu.hidden=true;tools.setAttribute('aria-expanded','false');
@@ -176,8 +190,8 @@
  on(reopen,()=>{returnHome();panel.hidden=false;mascotButton.setAttribute('aria-expanded','true');menu.hidden=true;tools.setAttribute('aria-expanded','false');if(!state)task.focus();else send.focus();});
  on(mascotButton,()=>toggleConversation());
  mascotButton.setAttribute('aria-expanded','true');
- on(stuck,()=>{if(!state){task.focus();status.textContent='Tell me what you’d like help doing.';return;}helpMode=true;needsReview=true;returnHome();review();answerLabel.hidden=false;answer.focus();status.textContent='Tell me what is confusing, or choose visual help. Review the context before sharing.';});
- on(explain,()=>{explanation.hidden=!explanation.hidden;});
+ on(stuck,()=>{analytics('im_stuck');if(!state){task.focus();status.textContent='Tell me what you’d like help doing.';return;}helpMode=true;needsReview=true;returnHome();review();answerLabel.hidden=false;answer.focus();status.textContent='Tell me what is confusing, or choose visual help. Review the context before sharing.';});
+ on(explain,()=>{analytics('explain_more');explanation.hidden=!explanation.hidden;});
  on(pause,async()=>{epoch++;busy=false;imageFeedback=undefined;stopAudio();returnHome();map({type:'restore'});state=await api(`/api/tasks/${state.runId}/${state.status==='paused'?'resume':'pause'}`,{});await save();status.textContent=state.status==='paused'?'Paused. The original page remains usable.':'Resumed. Review the current page before continuing.';});
  on(restore,()=>{returnHome();map({type:'restore'});stopAudio();});
  on(tools,()=>{menu.hidden=!menu.hidden;tools.setAttribute('aria-expanded',String(!menu.hidden));});
@@ -272,8 +286,9 @@
  },1600);
  (async()=>{
   const saved=await rpc({type:'load'});state=saved.state;visualStamp=saved.visualStamp;motion.checked=!!saved.keepStill;syncMotion();task.value=saved.task||state?.task||'';
+  const localPreferences=await chrome.storage.local.get('analyticsConsent');analyticsConsent.checked=!!localPreferences.analyticsConsent;
   const follow=await rpc({type:'follow-status'});followAllowed=!!follow?.enabled;followTask=followAllowed&&(saved.autoFollow??true);followToggle.checked=followTask;followToggle.disabled=!followAllowed;enableFollow.hidden=followAllowed;
-  render();const health=await api('/api/health');status.textContent=health.modes.Gemini==='gemini-live'?'Ready · Gemini connected':'Demo mode: sample energy-assistance journey only.';
+  render();const health=await api('/api/health');globalThis.__apTigerConnected=String(health.modes['Tiger Data']||'').startsWith('connected');globalThis.__apProvider=health.modes.Gemini==='gemini-live'?'gemini':'mastra';render();status.textContent=health.modes.Gemini==='gemini-live'?'Ready · Gemini connected':'Demo mode: sample energy-assistance journey only.';
   if(state){state=await api(`/api/tasks/${state.runId}`);if(same(state,snap()))reviewed=snap();render();await syncNavigation();}
  })().catch(async error=>{if(/Task not found|Task expired/.test(error.message)){state=undefined;reviewed=undefined;await rpc({type:'reset'}).catch(()=>{});status.textContent='The previous task is unavailable. Start a new task from this page.';}else status.textContent=error.message;render();});
  render();

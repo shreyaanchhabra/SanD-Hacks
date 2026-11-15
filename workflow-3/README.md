@@ -38,11 +38,11 @@ Copy `.env.example` to `.env`, set `PLANNER_MODE=gemini`, `GEMINI_API_KEY`, and 
 ## Connect the team later
 
 - **Workflow 1:** send sanitized `PageSnapshot` and progress events to the API. No HTML, screenshots, input values, cookies, credentials, or URL queries/fragments. The service rejects unknown fields. This is not automatic redaction: labels, task text, and clarification text must also be minimized by the caller.
-- **Workflow 2 / ElevenLabs:** implement `SpeechAdapter` and pass `speech` to `createService`. It receives only the current validated instruction and step ID. The current adapter returns status, not audio; agree a streaming HTTP response with the UI owner before replacing it. The UI must cancel stale audio and remain usable without speech.
+- **Workflow 2 / ElevenLabs:** `SpeechAdapter` can call ElevenLabs when both server-side credentials are set; it receives only the current validated instruction and step ID and returns bounded MP3 audio. Mock mode has no audio by default. The UI cancels stale audio and remains usable without speech.
 - **Workflow 4 / Bright Data:** implement `SourceAdapter.retrieveContext(task, snapshot)` and pass `sources` to `createService`. Return approved public excerpts with IDs, URL, retrieval time, and `synthetic: false`. Source IDs in model output must exist in that retrieval batch. Lookup failure permits page-only guidance. Current excerpts are labeled synthetic and do not claim official provenance.
-- **Workflow 4 / Tiger Data:** replace Mastra's `InMemoryStore` with its agreed persistent adapter **and** persist task metadata/event IDs currently held in `service.ts`. Rehydrate Mastra runs by ID, add ownership and expiry checks, and test backend restart recovery together. Merely saving events does not persist workflow checkpoints. This remains integration work, not an implemented Tiger Data adapter.
+- **Workflow 4 / Tiger Data:** optional PostgreSQL-compatible Tiger Data module in `src/tiger-data.ts`, with schema in `migrations/001_tiger_data.sql`. It stores a task only after `POST /api/tasks/:id/save` receives `{ "consent": true }`, and stores coarse help events only after explicit consent at `POST /api/analytics/events`. Approved, cited HTTPS source excerpts are recorded automatically when a real source adapter is connected. Resume cards live in Tiger Data; the Mastra workflow snapshot remains in the persistent local LibSQL store so page snapshots are not copied to Tiger without an explicit checkpoint design. Saved tasks survive the local one-hour expiry and can be removed with `DELETE /api/saved-journeys/:id`. This is a single-owner integration until real user authentication is added.
 
-All five sponsor modes are shown by the demo and health endpoint. Only Mastra runs live by default. Gemini is optional; Bright Data, Tiger Data, and ElevenLabs remain teammate-owned. No sponsor's mock is reported as a real integration.
+All five sponsor modes are shown by the health endpoint. Mastra runs locally by default. Gemini and ElevenLabs are optional real-provider adapters; Bright Data remains disconnected. The Tiger Data adapter is implemented but off until credentials are configured. No mock is reported as a real integration.
 
 ## Checks and limits
 
@@ -54,7 +54,7 @@ npm run build
 
 Tests exercise actual Mastra waiting/resumption, clarification, pause, duplicate/stale events, invalid target/source IDs, malformed proposals, provider errors, strict snapshots, and API authorization/origin checks.
 
-This is an independent development backend, not a deployed product. Task access expires after one idle hour. Configured runs persist in local task files and Mastra SQLite checkpoints across backend restarts; disk retention is separate. Local caps are 100 tasks and 500 events per task. No website is clicked, filled, submitted, or changed. The separate `../extension-live` connector provides a development popup and live DOM capture. There is no production mascot UI, real speech, official source crawl, cross-user authentication, or durable restart recovery yet. Keep inputs fictional during development. Before deployment, add distributed concurrency/limits, durable cleanup, per-user isolation, explicit sharing controls, and end-to-end extension tests.
+This is a development backend, not a deployed product. Unsaved task access expires after one idle hour; saved journeys remain until deleted. Configured runs and Mastra checkpoints persist locally across backend restarts when `.data` is retained. Tiger stores only explicitly saved journey summaries, consented coarse events, and (once a real source adapter is connected) cited public source excerpts; it does not store the full Mastra snapshot. Local caps are 100 active unsaved tasks and 500 events per task. The separate `../extension-live` connector provides a development popup; `../combined-extension` is the mascot-led development UI. There is no Bright Data source collector or multi-user authentication yet. The Tiger owner ID is a single configured owner, not caller identity. Keep inputs fictional during development. Before deployment, add distributed concurrency/limits, verified cleanup, per-user isolation, and end-to-end extension tests.
 
 Implementation references: [Mastra suspend/resume](https://mastra.ai/docs/workflows/suspend-and-resume), [Gemini structured output](https://ai.google.dev/gemini-api/docs/structured-output). Dependency versions are captured in `package-lock.json`.
 
@@ -67,3 +67,16 @@ See [live connector setup](../extension-live/README.md). Run `npm run test:brows
 Use [combined-extension](../combined-extension/README.md) for the connected mascot/panel. Task and event requests accept an optional consented `screenshot` bound to the current page/revision. Images bypass Mastra checkpoint input via a temporary turn-scoped lookup and are discarded after planning. Visual-only guidance may return `targetId: null`. Optional ElevenLabs speech is configured server-side. See the combined extension guide for crop review and installation.
 
 The development server now uses durable local `.data` storage by default. `createService()` unit fixtures still default to memory. Keep `.data` out of Git. See combined-extension/README.md for automatic-follow consent, local checkpoint retention, and shortcut setup. The live configuration supplies no synthetic public-source excerpts; Bright Data remains disconnected until its real adapter is integrated.
+
+### Optional Tiger Data connection
+
+Tiger Data is off by default. Copy `.env.example` to `.env`, then set both values in the backend environment (the checked-out `.env` has blank values):
+
+```sh
+TIGER_DATA_URL=postgresql://USER:PASSWORD@HOST:PORT/DATABASE
+TIGER_OWNER_ID=your-stable-owner-id
+```
+
+The server applies the idempotent schema at startup and requires valid PostgreSQL TLS certificates. `TIGER_OWNER_ID` scopes reads, writes, and deletion; it must be a stable, non-secret owner label. The current bearer-token API has one configured owner, so this is not multi-user authentication. No Tiger credentials are configured in this checkout.
+
+Task save/list/delete API: `POST /api/tasks/:id/save` with `{ "consent": true }`, `GET /api/saved-journeys`, and `DELETE /api/saved-journeys/:id`. Analytics accepts only the event names `explain_more`, `im_stuck`, `lost_target`, and `provider_failure`, broad journey/step categories, an optional provider label, and an explicit `consent: true`; event rows are pruned after seven days. Turning the extension setting off sends `DELETE /api/analytics/events` to remove that owner's stored help events. Do not send page text, field values, URLs, or free-form descriptions to this endpoint. Saved task goals and progress remain until the user deletes the saved task.

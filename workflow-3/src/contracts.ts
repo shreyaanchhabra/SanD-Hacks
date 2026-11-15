@@ -36,6 +36,7 @@ export type ProgressEvent = z.infer<typeof eventSchema>;
 export const startSchema = z.object({ task: text, snapshot: snapshotSchema, screenshot: screenshotSchema.optional() }).strict();
 export const taskStateSchema = z.object({
  runId: id, stepId: id, pageId: id, revision: z.number().int().positive(),
+ savedForLater: z.boolean().optional(),
  status: z.enum(['clarifying','waiting-for-user','unsupported','paused']), result: resultSchema,
  sources: z.array(sourceSchema), workflowStatus: z.string(), task: text,
  journey: z.array(z.string().max(160)).max(6), stage: z.string().max(160).optional(),

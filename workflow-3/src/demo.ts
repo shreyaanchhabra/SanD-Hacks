@@ -1,6 +1,6 @@
 import { configuredService } from './config.js';
 import { startPage, formPage } from './fixtures.js';
-const service = configuredService();
+const service = await configuredService();
 console.log('AccessPatch workflow 3 — fictional, standalone demonstration');
 console.log('Sponsor modes:', service.modes);
 const first = await service.start('Help with my energy bill', startPage);

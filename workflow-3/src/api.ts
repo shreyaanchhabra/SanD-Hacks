@@ -2,6 +2,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
 import { createService } from './service.js';
 import { startSchema } from './contracts.js';
+import { guidanceEventType } from './tiger-data.js';
 export function createApi({ token, service = createService(), allowedExtensionOrigin }: { token: string; allowedExtensionOrigin?: string; service?: ReturnType<typeof createService> }) {
   if (!token) throw new Error('A local API token is required');
   if (allowedExtensionOrigin && !/^chrome-extension:\/\/[a-p]{32}$/.test(allowedExtensionOrigin)) throw new Error('Invalid extension origin');
@@ -16,7 +17,11 @@ export function createApi({ token, service = createService(), allowedExtensionOr
     const path = new URL(request.url).pathname;
     try {
       if (request.method === 'GET' && path === '/api/health') return json({ modes: service.modes, persistence: service.persistence });
-      const match = /^\/api\/tasks\/([a-f0-9-]+)(?:\/(events|pause|resume|speech))?$/.exec(path);
+      if (request.method === 'GET' && path === '/api/saved-journeys') return json(await service.savedJourneys());
+      if (request.method === 'DELETE' && path === '/api/analytics/events') { await service.clearGuidanceEvents(); return json({ deleted: true }); }
+      const match = /^\/api\/tasks\/([a-f0-9-]+)(?:\/(events|pause|resume|speech|save))?$/.exec(path);
+      const savedMatch = /^\/api\/saved-journeys\/([a-f0-9-]+)$/.exec(path);
+      if (request.method === 'DELETE' && savedMatch) { await service.deleteSavedJourney(savedMatch[1]); return json({ deleted: true }); }
       if (request.method === 'GET' && match && !match[2]) return json(service.get(match[1]));
       if (request.method !== 'POST') return json({ error: 'Not found' }, 404);
       if (!request.headers.get('content-type')?.startsWith('application/json')) return json({ error: 'JSON required' }, 415);
@@ -24,9 +29,15 @@ export function createApi({ token, service = createService(), allowedExtensionOr
       if (Buffer.byteLength(raw) > 1600000) return json({ error: 'Request too large' }, 413);
       const body = JSON.parse(raw);
       if (path === '/api/tasks') { const { task, snapshot, screenshot } = startSchema.parse(body); return json(await service.start(task, snapshot, screenshot), 201); }
+      if (path === '/api/analytics/events') {
+        const value = z.object({ consent: z.literal(true), eventId: z.string().min(1).max(120), type: z.string(), journeyCategory: z.enum(['application','account-setup','benefits','healthcare','education','other']), stepCategory: z.enum(['navigation','identity','contact','eligibility','documents','review','submission','unknown']), provider: z.enum(['gemini','mastra','bright-data','elevenlabs','extension']).optional() }).strict().parse(body);
+        if (!guidanceEventType(value.type)) return json({ error: 'Unsupported event type' }, 400);
+        return json(await service.recordGuidanceEvent({ consent: value.consent, id: value.eventId, type: value.type, journeyCategory: value.journeyCategory, stepCategory: value.stepCategory, provider: value.provider }));
+      }
       if (match) {
         const [, id, action] = match;
         if (action === 'events') return json(await service.event(id, body));
+        if (action === 'save') { const value = z.object({ consent: z.literal(true) }).strict().parse(body); return json(await service.saveJourney(id, value.consent)); }
         if (action === 'pause' || action === 'resume') { z.object({}).strict().parse(body); return json(await (action === 'pause' ? service.pause(id) : service.unpause(id))); }
         if (action === 'speech') { const { stepId } = z.object({ stepId: z.string() }).strict().parse(body); return json(await service.speak(id, stepId)); }
       }
@@ -43,7 +54,7 @@ export function createApi({ token, service = createService(), allowedExtensionOr
     const response = await handle(request);
     if (allowedExtensionOrigin && request.headers.get('origin') === allowedExtensionOrigin) {
       response.headers.set('access-control-allow-origin', allowedExtensionOrigin);
-      response.headers.set('access-control-allow-methods', 'GET, POST, OPTIONS');
+      response.headers.set('access-control-allow-methods', 'GET, POST, DELETE, OPTIONS');
       response.headers.set('access-control-allow-headers', 'Authorization, Content-Type');
       response.headers.set('vary', 'Origin');
     }
