@@ -61,8 +61,8 @@ test('unchanged page is not navigation and missing targets do not complete a tas
   assert.equal((await planStep({ ...input(), snapshot: { ...startPage, elements: [] } }, mockPlanner)).kind, 'unsupported');
 });
 test('cited source metadata reaches clients for visible attribution', async () => {
-  const service = createService({ planner: async () => ({ kind: 'guidance', instruction: 'Read the energy instructions.', explanation: 'Synthetic example.', targetId: 'energy-link', sourceIds: ['demo-source'], expectedOutcome: 'navigation' }) });
-  const first = await service.start('energy bill', startPage);
+  const service = createService({ sources: { mode: 'test-source', retrieveContext: async () => sources }, planner: async () => ({ kind: 'guidance', instruction: 'Read the energy instructions.', explanation: 'Synthetic example.', targetId: 'energy-link', sourceIds: ['demo-source'], expectedOutcome: 'navigation' }) });
+  const first = await service.start('What documents are required for energy bill assistance?', startPage);
   assert.deepEqual(first.sources, sources);
 });
 test('same-page continuation receives the previous target and instruction', async () => {

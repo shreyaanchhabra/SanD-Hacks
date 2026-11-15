@@ -1,0 +1,9 @@
+{
+  "name": "accesspatch-brightdata-workflow4",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "collect": "node --env-file=.env scripts/collect-source.mjs"
+  }
+}

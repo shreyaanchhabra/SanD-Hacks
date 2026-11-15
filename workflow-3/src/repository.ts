@@ -1,8 +1,8 @@
 import {mkdirSync,readFileSync,writeFileSync,renameSync,readdirSync,unlinkSync} from 'node:fs';
 import {join} from 'node:path';
 import {z} from 'zod';
-import {snapshotSchema,taskStateSchema} from './contracts.js';
-const recordSchema=z.object({task:z.string().max(2000),snapshot:snapshotSchema,history:z.array(z.string()).max(12),state:taskStateSchema,workflowRunId:z.string(),events:z.array(z.string()).max(500),touched:z.number(),saved:z.boolean().default(false)}).strict();
+import {snapshotSchema,sourceSchema,taskStateSchema} from './contracts.js';
+const recordSchema=z.object({task:z.string().max(2000),snapshot:snapshotSchema,history:z.array(z.string()).max(12),sourceContext:z.array(sourceSchema).max(10).default([]),state:taskStateSchema,workflowRunId:z.string(),events:z.array(z.string()).max(500),touched:z.number(),saved:z.boolean().default(false)}).strict();
 export type StoredTask=z.infer<typeof recordSchema>;
 export class TaskRepository{
  constructor(private directory:string){mkdirSync(directory,{recursive:true,mode:0o700});}

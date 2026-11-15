@@ -22,13 +22,14 @@ export const screenshotSchema = z.object({
 export type Screenshot = z.infer<typeof screenshotSchema>;
 export const sourceSchema = z.object({ id, url: z.string().url(), text, retrievedAt: z.string(), synthetic: z.boolean() }).strict();
 export type SourceExcerpt = z.infer<typeof sourceSchema>;
+export const checklistItemSchema = z.object({ text, sourceId: id }).strict();
 const observationSchema=z.object({text,elementId:id.nullable(),basis:z.enum(['page','image','source']),sourceId:id.optional()}).strict();
 const evidenceSchema=z.object({type:z.enum(['navigation','section-change','user-confirmation']),description:text,elementId:id.nullable()}).strict();
 export const pageChangeSchema=z.object({event:z.string().max(80),previousTitle:z.string().max(2000).nullable(),addedLabels:z.array(z.string().max(160)).max(10),removedLabels:z.array(z.string().max(160)).max(10),visibleErrors:z.number().int().nonnegative()}).strict();
 export type PageChange=z.infer<typeof pageChangeSchema>;
 const journeyFields = { journey: z.array(z.string().min(1).max(160)).max(6).optional(), stage: z.string().max(160).optional(), visualObservation: text.optional(), observations:z.array(observationSchema).max(4).optional(), changeSummary:text.nullable().optional() };
 export const resultSchema = z.discriminatedUnion('kind', [
-  z.object({ ...journeyFields, kind: z.literal('guidance'), instruction: text, explanation: text, targetId: id.nullable(), sourceIds: z.array(id).max(10), expectedOutcome: z.enum(['navigation', 'user-confirmation']), completionEvidence:evidenceSchema.optional() }).strict(),
+  z.object({ ...journeyFields, kind: z.literal('guidance'), instruction: text, explanation: text, targetId: id.nullable(), sourceIds: z.array(id).max(10), checklist: z.array(checklistItemSchema).max(5).optional(), expectedOutcome: z.enum(['navigation', 'user-confirmation']), completionEvidence:evidenceSchema.optional() }).strict(),
   z.object({ ...journeyFields, kind: z.literal('clarification'), question: text }).strict(),
   z.object({ ...journeyFields, kind: z.literal('unsupported'), reason: text }).strict(),
 ]);
@@ -44,10 +45,14 @@ export const taskStateSchema = z.object({
  status: z.enum(['clarifying','waiting-for-user','unsupported','paused']), result: resultSchema,
  sources: z.array(sourceSchema), workflowStatus: z.string(), task: text,
  journey: z.array(z.string().max(160)).max(6), stage: z.string().max(160).optional(),
- analysis: z.object({ input: z.enum(['text','image+text']), imageStatus: z.enum(['not-requested','analyzed','unverified','failed']), observation: z.string().nullable(), provider: z.string(), cache:z.enum(['hit','miss','coalesced','bypass']).optional(), cacheStore:z.string().optional(), providerCalls:z.number().int().nonnegative().optional(), retryAfterSeconds:z.number().optional() }),
+ analysis: z.object({ input: z.enum(['text','image+text']), imageStatus: z.enum(['not-requested','analyzed','unverified','failed']), observation: z.string().nullable(), provider: z.string(), cache:z.enum(['hit','miss','coalesced','bypass']).optional(), cacheStore:z.string().optional(), providerCalls:z.number().int().nonnegative().optional(), retryAfterSeconds:z.number().optional(), retrieval: z.enum(['not-needed','live','cached','no-results','not-configured','provider-failure','budget-limited']).optional(), retrievalMessage: z.string().max(200).optional() }),
 });
 export type TaskState = z.infer<typeof taskStateSchema>;
 /** Workflow 4 supplies retrieval; only approved public excerpts belong here. */
-export interface SourceAdapter { mode: string; retrieveContext(task: string, snapshot: PageSnapshot): Promise<SourceExcerpt[]> }
+export interface SourceAdapter {
+  mode: string;
+  retrieveContext(task: string, snapshot: PageSnapshot): Promise<SourceExcerpt[]>;
+  outcomeFor?(task: string, snapshot: PageSnapshot): { status: 'not-needed' | 'live' | 'cached' | 'no-results' | 'not-configured' | 'provider-failure' | 'budget-limited'; message?: string } | undefined;
+}
 /** Workflow 2 supplies speech. The service passes validated current-step text only. */
 export interface SpeechAdapter { mode: string; speak(stepId: string, text: string): Promise<{ status: string; audioBase64?: string; contentType?: string }> }
