@@ -8,13 +8,14 @@ export function createApi({ token, service = createService(), allowedExtensionOr
   if (allowedExtensionOrigin && !/^chrome-extension:\/\/[a-p]{32}$/.test(allowedExtensionOrigin)) throw new Error('Invalid extension origin');
   const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } });
   const handle = async (request: Request): Promise<Response> => {
+    const path = new URL(request.url).pathname;
+    if (request.method === 'GET' && path === '/') return json({ service: 'workflow-3', status: 'running', message: 'Open the combined-extension and configure its local API token. API routes remain protected.' });
     const origin = request.headers.get('origin');
     if (origin && origin !== allowedExtensionOrigin) return json({ error: 'Browser origin is not allowed' }, 403);
     if (request.method === 'OPTIONS' && origin === allowedExtensionOrigin && origin) return new Response(null, { status: 204 });
     const provided = Buffer.from(request.headers.get('authorization') ?? '');
     const expected = Buffer.from(`Bearer ${token}`);
     if (provided.length !== expected.length || !timingSafeEqual(provided, expected)) return json({ error: 'Unauthorized' }, 401);
-    const path = new URL(request.url).pathname;
     try {
       if (request.method === 'GET' && path === '/api/health') return json({ modes: service.modes, persistence: service.persistence });
       if (request.method === 'GET' && path === '/api/saved-journeys') return json(await service.savedJourneys());

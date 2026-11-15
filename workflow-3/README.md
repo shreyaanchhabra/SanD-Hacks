@@ -48,6 +48,8 @@ All five sponsor modes are shown by the health endpoint. Mastra runs locally by 
 
 ## Checks and limits
 
+Opening `http://127.0.0.1:4313/` directly shows a local server status message. API routes remain protected; use the combined extension with the temporary local API token printed when the backend starts.
+
 ```sh
 npm test
 npm run typecheck
