@@ -13,7 +13,7 @@
  .menu-bar{position:absolute;z-index:3;right:18px;top:18px;pointer-events:auto;font:16px/1.5 system-ui;color:#173957}.menu-bar>button{box-shadow:0 4px 18px #17395720;background:white}
  .menu{position:absolute;top:54px;right:0;margin-top:0;width:min(340px,calc(100vw - 36px));max-height:calc(100vh - 90px);overflow:auto;padding:20px;border:1px solid #b7cadd;border-radius:14px;background:#fff;box-shadow:0 10px 32px #16375124}
  h1{font:25px/1.2 Georgia,serif;margin:0 0 12px}h2{font:22px/1.3 Georgia,serif;margin:0 0 12px}p{margin:8px 0}label{display:block;font-weight:650;margin-top:10px}textarea,input{box-sizing:border-box;width:100%;font:inherit;padding:9px;border:1px solid #829cb8;border-radius:7px;background:white;color:#173957}textarea{resize:vertical}
- button{font:600 15px/1.4 system-ui;min-height:44px;padding:9px 12px;margin:4px 4px 4px 0;border:1px solid #a5bbd2;border-radius:9px;color:#173957;background:#f1f6fc;cursor:pointer}button.primary{background:#2354bd;color:white;border-color:#2354bd}button:disabled{opacity:.5;cursor:default}:focus-visible{outline:3px solid #bf7100;outline-offset:3px}.actions{display:flex;flex-wrap:wrap;gap:3px}.subtle,.status,.menu-notice{font-size:13px;color:#4c647c}.status{min-height:20px}.menu-notice{max-width:230px;background:white;padding:8px;border-radius:8px}.visual-result{font-size:14px;padding:10px;border-radius:8px;background:#edf6f1;margin-top:10px}.visual-badge{font-weight:700;color:#245a46}.more{border-top:1px solid #e2e9f0;margin-top:8px;padding-top:2px}.bubble{font-size:20px;line-height:1.5;font-weight:500;margin-bottom:12px}.explain{font-size:16px;border-top:1px solid #d5e0eb;padding-top:10px}pre{font:12px/1.5 monospace;white-space:pre-wrap;overflow-wrap:anywhere;max-height:180px;overflow:auto;background:#f3f6fa;padding:10px}summary{cursor:pointer;font-weight:600;font-size:14px;margin:10px 0}.journey-input{margin-top:10px}.journey-input>button.primary{width:100%}.quiet-actions{display:flex;gap:4px;flex-wrap:wrap}.quiet-actions button{font-size:13px;background:white;border-color:transparent;text-decoration:underline}.tool-content .apc-panel{display:block}.tool-content input{font-size:16px}.tool-content .apc-results{padding-left:20px}.tool-content .apc-status{font-size:14px}.tool-content .apc-panel-header{display:none}.mode{display:flex;gap:8px;align-items:center;font-size:15px}.mode input{width:auto;min-width:20px;height:20px}
+ button{font:600 15px/1.4 system-ui;min-height:44px;padding:9px 12px;margin:4px 4px 4px 0;border:1px solid #a5bbd2;border-radius:9px;color:#173957;background:#f1f6fc;cursor:pointer}button.primary{background:#2354bd;color:white;border-color:#2354bd}button:disabled{opacity:.5;cursor:default}:focus-visible{outline:3px solid #bf7100;outline-offset:3px}.actions{display:flex;flex-wrap:wrap;gap:3px}.subtle,.status,.menu-notice{font-size:13px;color:#4c647c}.status{min-height:20px}.menu-notice{max-width:230px;background:white;padding:8px;border-radius:8px}.visual-result{font-size:14px;padding:10px;border-radius:8px;background:#edf6f1;margin-top:10px}.visual-badge{font-weight:700;color:#245a46}.more{border-top:1px solid #e2e9f0;margin-top:8px;padding-top:2px}.bubble{font-size:20px;line-height:1.5;font-weight:500;margin-bottom:12px}.explain{font-size:16px;border-top:1px solid #d5e0eb;padding-top:10px}pre{font:12px/1.5 monospace;white-space:pre-wrap;overflow-wrap:anywhere;max-height:180px;overflow:auto;background:#f3f6fa;padding:10px}summary{cursor:pointer;font-weight:600;font-size:14px;margin:10px 0}.journey-input{margin-top:10px}.journey-input>button.primary{width:100%}.quiet-actions{display:flex;gap:4px;flex-wrap:wrap}.quiet-actions button{font-size:13px;background:white;border-color:transparent;text-decoration:underline}.tool-content .apc-panel{display:block}.tool-content input{font-size:16px}.tool-content .apc-results{list-style:none;padding:0;margin:8px 0}.apc-result{display:flex;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid #e2e9f0}.apc-result>div{flex:1;min-width:0}.apc-result button{flex:none;min-width:56px;background:white}.apc-kind,.apc-context{display:block;font-size:12px;color:#597087;line-height:1.4}.apc-title{display:block;font-size:16px;font-weight:650;line-height:1.4;margin:3px 0}.apc-task-note{font-size:13px;color:#597087}.apc-shortcuts{display:flex;flex-wrap:wrap;gap:4px;margin:12px 0}.apc-shortcuts button{font-size:13px;flex:1}.tool-content .apc-panel>button.primary{width:100%;margin-top:8px}.reasoning{font-size:14px;border-top:1px solid #e2e9f0}.reasoning ul{padding-left:18px}.cache-note{font-size:12px;color:#386253}.tool-content .apc-status{font-size:14px}.tool-content .apc-panel-header{display:none}.mode{display:flex;gap:8px;align-items:center;font-size:15px}.mode input{width:auto;min-width:20px;height:20px}
  .review{position:absolute;z-index:5;inset:20px;max-width:900px;max-height:calc(100vh - 40px);margin:auto;overflow:auto;pointer-events:auto;background:white;color:#173957;border:2px solid #2354bd;border-radius:12px;padding:24px;font:18px/1.5 system-ui;box-shadow:0 0 0 100vmax #102b4dbb}.review canvas{display:block;max-width:100%;height:auto;border:1px solid #a5bbd2;touch-action:none;cursor:crosshair}.crop-fields{display:flex;gap:12px;flex-wrap:wrap}.crop-fields label{font-size:14px}.crop-fields input{width:85px}.review h2{font:28px Georgia,serif}.small{font-size:13px}.review img{max-width:100%;max-height:200px;object-fit:contain}a{color:#174fae}.return{font-size:13px}
  @media(prefers-reduced-motion:reduce){.companion{transition:none!important}}@media(max-width:520px){.companion{left:10px;bottom:12px;width:calc(100vw - 24px);gap:4px}.mascot{width:88px;height:100px}.mascot exode-mascot{width:88px;height:88px}.conversation{width:calc(100% - 92px);padding:14px}.menu-bar{top:10px;right:10px}.review{inset:8px;padding:16px}}
  `;
@@ -22,7 +22,7 @@
  const menuBar=make('div',null,shadow,{className:'menu-bar'});
  const tools=make('button','Tools & settings',menuBar);tools.setAttribute('aria-expanded','false');
  const menuNotice=make('p','',menuBar,{className:'menu-notice',hidden:true});menuNotice.setAttribute('role','status');
- const menu=make('section',null,menuBar,{className:'menu',hidden:true});menu.setAttribute('aria-label','Page tools and settings');make('h2','Make this page yours',menu);
+ const menu=make('section',null,menuBar,{className:'menu',hidden:true});menu.setAttribute('aria-label','Page tools and settings');make('h2','Page compass',menu);
  const toolContent=make('div',null,menu,{className:'tool-content'});const mountedTools=globalThis.__apMountTools(toolContent);
  for(const button of mountedTools.querySelectorAll('button'))if(button.textContent==='Restore page')button.addEventListener('click',()=>{map({type:'restore'});returnHome();stopAudio();});
  const motionLabel=make('label',null,menu,{className:'mode'});const motion=make('input',null,motionLabel,{type:'checkbox'});motionLabel.append(document.createTextNode('Keep mascot still'));
@@ -37,9 +37,10 @@
  const actions=make('div',null,panel,{className:'actions'});
  const more=make('details',null,panel,{className:'more'});make('summary','More',more);const extra=make('div',null,more,{className:'actions'});
  const highlight=make('button','Show me',actions,{className:'primary'}),explain=make('button','Explain more',extra),repeat=make('button','Read aloud',extra),pause=make('button','Pause',extra);
+ const why=make('details',null,panel,{className:'reasoning'});make('summary','Why this step?',why);const observations=make('ul',null,why);const changed=make('p','',why);const expected=make('p','',why);const cacheNote=make('p','',panel,{className:'cache-note',hidden:true});
  const explanation=make('p','',panel,{className:'explain',hidden:true});const sourceList=make('ul',null,panel);
  const journeyInput=make('div',null,panel,{className:'journey-input'});
- const taskLabel=make('label','What would you like to do?',journeyInput);const task=make('textarea',null,taskLabel,{rows:2,maxLength:2000,placeholder:'For example, find help with my energy bill'});
+ const taskLabel=make('label','Your task',journeyInput);const task=make('textarea',null,taskLabel,{rows:2,maxLength:2000,placeholder:'For example, find help with my energy bill'});
  const answerLabel=make('label','Your answer',journeyInput,{hidden:true});const answer=make('textarea',null,answerLabel,{rows:2,maxLength:2000});
  const inspect=make('button','Review this page',journeyInput,{hidden:true});
  const contextDetails=make('details',null,journeyInput);make('summary','Review what gets shared',contextDetails);const preview=make('pre','Review the page to see what will be shared.',contextDetails);make('p','Your approved context goes to Gemini. Keep private answers out.',contextDetails,{className:'subtle'});
@@ -118,6 +119,12 @@
  function render(){
   const valid=current()&&state.status!=='paused'; const result=valid?state.result:undefined;
   task.readOnly=!!state||busy;answer.disabled=busy;actions.hidden=!state;sharingNotice.hidden=!!state;journeyDetails.hidden=!state;taskSummary.textContent=state?.task||task.value;journeyList.replaceChildren();for(const milestone of state?.journey||[])make('li',milestone,journeyList);
+  globalThis.__apSetTask?.(state?.task||task.value);
+  observations.replaceChildren();for(const observation of result?.observations||[])make('li',observation.text,observations);
+  observations.setAttribute('aria-label','Observed page facts');why.hidden=!result?.observations?.length&&!result?.changeSummary&&!result?.completionEvidence;
+  changed.textContent=result?.changeSummary?'What changed: '+result.changeSummary:'';changed.hidden=!result?.changeSummary;
+  expected.textContent=result?.completionEvidence?'What to look for: '+result.completionEvidence.description:'';expected.hidden=!result?.completionEvidence;
+  cacheNote.hidden=!valid||!state?.analysis?.cache;cacheNote.textContent=state?.analysis?.cache==='hit'||state?.analysis?.cache==='coalesced'?'Saved guidance · no new Gemini request':state?.analysis?.retryAfterSeconds?'Requests paused · retry in '+state.analysis.retryAfterSeconds+'s':'';if(!cacheNote.textContent)cacheNote.hidden=true;
   if(state?.stage)taskSummary.textContent=(state.task||task.value)+' — '+state.stage;
   const evidence=imageFeedback ?? (valid&&state?.analysis?.input==='image+text'?{badge:state.analysis.imageStatus==='analyzed'?'✓ Image analyzed by '+state.analysis.provider:state.analysis.imageStatus==='failed'?'Image analysis failed':'Image sent — visual findings not confirmed',finding:state.analysis.observation||'No visual findings returned. Try a clearer crop.'}:undefined);
   visualResult.hidden=!evidence;if(evidence){visualBadge.textContent=evidence.badge;visualFinding.textContent=evidence.finding;}
@@ -165,19 +172,21 @@
  on(inspect,review);
  on(enableFollow,()=>rpc({type:'open-settings'}));
  followToggle.addEventListener('change',async()=>{followTask=followToggle.checked&&followAllowed;await save();});on(send,()=>{reviewed=snap();return requestGuidance();});
- on(highlight,()=>{
+ function showCurrentTarget(){
+  if(!current()||state.result.kind!=='guidance'||!state.result.targetId)throw new Error('No current target');
   menu.hidden=true;tools.setAttribute('aria-expanded','false');
   const ref={pageId:state.pageId,revision:state.revision,targetId:state.result.targetId};
   map({type:'highlight',...ref,reveal:true});
   if(!still()){targetRef=ref;placeBesideTarget();}else{moveConversationAside(map({type:'target',...ref}));}
   status.textContent=companion.dataset.location==='target'?'Here it is. Select the outlined control when you’re ready.':'The control is outlined. Select it yourself when ready.';
- });
+ }
+ on(highlight,showCurrentTarget);globalThis.__apPageActions={showCurrent:showCurrentTarget};
  on(home,()=>{returnHome();panel.hidden=false;mascotButton.setAttribute('aria-expanded','true');});
  on(reopen,()=>{returnHome();panel.hidden=false;mascotButton.setAttribute('aria-expanded','true');menu.hidden=true;tools.setAttribute('aria-expanded','false');if(!state)task.focus();else send.focus();});
  on(mascotButton,()=>toggleConversation());
  mascotButton.setAttribute('aria-expanded','true');
  on(stuck,()=>{if(!state){task.focus();status.textContent='Tell me what you’d like help doing.';return;}helpMode=true;needsReview=true;returnHome();review();answerLabel.hidden=false;answer.focus();status.textContent='Tell me what is confusing, or choose visual help. Review the context before sharing.';});
- on(explain,()=>{explanation.hidden=!explanation.hidden;});
+ on(explain,()=>{explanation.hidden=!explanation.hidden;if(!why.hidden)why.open=!explanation.hidden;});
  on(pause,async()=>{epoch++;busy=false;imageFeedback=undefined;stopAudio();returnHome();map({type:'restore'});state=await api(`/api/tasks/${state.runId}/${state.status==='paused'?'resume':'pause'}`,{});await save();status.textContent=state.status==='paused'?'Paused. The original page remains usable.':'Resumed. Review the current page before continuing.';});
  on(restore,()=>{returnHome();map({type:'restore'});stopAudio();});
  on(tools,()=>{menu.hidden=!menu.hidden;tools.setAttribute('aria-expanded',String(!menu.hidden));});

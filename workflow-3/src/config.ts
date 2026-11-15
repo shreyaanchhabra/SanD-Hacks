@@ -1,3 +1,6 @@
+import {createHash} from 'node:crypto';
+import {GuidanceEngine,FileGuidanceCache} from './guidance-engine.js';
+import {tigerCache} from './tiger-cache.js';
 import { LibSQLStore } from '@mastra/libsql';
 import { mkdirSync } from 'node:fs';
 import { resolve, join } from 'node:path';
@@ -15,5 +18,12 @@ export function configuredService() {
   if (mode === 'mock') return createService({ speech, ...durable });
   const { GEMINI_API_KEY, GEMINI_MODEL } = process.env;
   if (!GEMINI_API_KEY || !GEMINI_MODEL) throw new Error('Gemini mode requires GEMINI_API_KEY and GEMINI_MODEL');
-  return createService({ planner: geminiPlanner(GEMINI_API_KEY, GEMINI_MODEL), plannerMode: 'gemini-live', speech, sources:{mode:'not-connected',retrieveContext:async()=>[]}, ...durable });
+  const planner=geminiPlanner(GEMINI_API_KEY,GEMINI_MODEL);
+  const localCache=new FileGuidanceCache(join(directory,'guidance-cache'));
+  const database=process.env.TIGER_DATABASE_URL;
+  const cache=database?tigerCache(database,localCache):localCache;
+  const scope=createHash('sha256').update(process.env.LOCAL_API_TOKEN??GEMINI_API_KEY).digest('hex');
+  const positive=(value:string|undefined,fallback:number)=>{const number=Number(value);return Number.isInteger(number)&&number>0?number:fallback;};
+  const engine=new GuidanceEngine({planner,model:GEMINI_MODEL,scope,cache,dailyBudget:positive(process.env.GEMINI_DAILY_BUDGET,20),minuteBudget:positive(process.env.GEMINI_MINUTE_BUDGET,5),budgetFile:join(directory,'budget-'+createHash('sha256').update(GEMINI_MODEL).digest('hex').slice(0,12)+'.json')});
+  return createService({ engine,planner, plannerMode: 'gemini-live', speech, sources:{mode:'not-connected',retrieveContext:async()=>[]}, ...durable });
 }

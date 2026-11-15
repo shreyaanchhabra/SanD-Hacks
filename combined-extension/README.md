@@ -34,7 +34,7 @@ Set `ELEVENLABS_API_KEY` and `ELEVENLABS_VOICE_ID` in backend `.env` and restart
 - Chromium: linked mascot/panel/page mapper with real local Mastra, DOM privacy, screenshot cancel/crop/explicit share, hostile synthetic clicks, stale replies/visual context, and late speech cancellation.
 - A real Gemini image request interpreted the cropped fictional test page and Mastra suspended successfully. No private real website data was used for that smoke test.
 - Browser tests simulate Chrome messaging and open the otherwise closed shadow root only inside the test harness for control assertions. Separate tests retain the closed root and check page isolation. Manual installation, toolbar/activeTab capture in a user's Chrome profile, and real third-party site behavior still require smoke testing.
-- Tiger Data/Bright Data remain teammate integration seams. Task state is saved locally in version 0.4; see Continuous guidance below. No claims of universal website support, eligibility determination, persistent recovery, or autonomous website actions.
+- Bright Data remains a teammate integration seam. Tiger Data has an optional reusable cache adapter; task state is saved locally; see Continuous guidance below. No claims of universal website support, eligibility determination, persistent recovery, or autonomous website actions.
 
 Stable extension ID: `jiahogemipnlpbgpcgcbpkfekgkhpnof`.
 
@@ -63,4 +63,12 @@ The backend now saves task metadata and event IDs under `workflow-3/.data/tasks`
 
 For screenshots, the UI shows **Sending / Analyzing** with elapsed time. On success, **Image analyzed** includes the actual `visualObservation` returned by Gemini. If the provider fails or supplies no visual findings, it says so instead of treating successful capture as successful analysis. Findings and instruction text may be saved with task state; raw crop data is never included in task files or Mastra checkpoints. The cropped image is sent as inline multimodal input, not a text filename or reusable file upload.
 
-Latest verification: 28 backend tests and 26 browser tests passed. A real Gemini image-only request produced visible findings; later real form requests hit HTTP 429. The final schema/citation correction is covered by local tests but a fresh live form smoke test remains pending quota availability. Reload Chrome extension 0.4 and refresh your page; after migrating from the old memory-only backend, start a new task once.
+A real Gemini image-only request produced visible findings; a later fictional form request produced validated guidance. Reload the extension and refresh your page after upgrading; start a new task once when migrating from the old memory-only backend.
+
+## Page compass and form evidence (0.5)
+
+**Tools & settings** now opens a compact Page compass. Search returns concise destinations with their type and section, collapses duplicate links, and keeps same-name fields distinct by form group. **Show** moves the mascot to the item without activating it. **Find required fields**, **Find visible errors**, and **Current step** work locally without Gemini calls. Reading preferences sit in one collapsed group.
+
+Beside the mascot, **Why this step?** separates observed page facts, what changed, and what to look for next. Saved guidance has a visible cache indicator; cooldown messages explain when another model call can be attempted. Form context includes groups, required status, types, and constraints without sending filled values. Screenshots still require crop review and explicit sharing.
+
+Tiger Data is optional: set `TIGER_DATABASE_URL` in the backend `.env` and run `npm run cache:check` from `workflow-3`. Only reusable static form structure and guidance enter that cache. Answers, raw screenshots, and task progress do not. Until a database is configured, the backend uses local cache storage. Local task checkpoints remain separate.

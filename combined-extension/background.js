@@ -12,7 +12,7 @@ async function inject(tabId, automatic=false){
  }
  await chrome.scripting.executeScript({target:{tabId},func:value=>{globalThis.__apAutomaticInjection=value;},args:[automatic]});
  await chrome.scripting.insertCSS({target:{tabId},files:['tools.css']});
- await chrome.scripting.executeScript({target:{tabId},files:['page-map.js','tools.js','guide.js']});
+ await chrome.scripting.executeScript({target:{tabId},files:['fingerprint.js','page-map.js','tools.js','guide.js']});
  if(automatic)await chrome.tabs.sendMessage(tabId,{type:'navigation-ready'}).catch(()=>{});
 }
 chrome.action.onClicked.addListener(tab=>inject(tab.id).catch(()=>chrome.runtime.openOptionsPage()));

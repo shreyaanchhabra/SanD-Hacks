@@ -4,8 +4,8 @@ const id = z.string().min(1).max(120);
 export const snapshotSchema = z.object({
   pageId: id, revision: z.number().int().positive(),
   url: z.string().url().max(2048).refine(value => { const u = new URL(value); return ['http:', 'https:'].includes(u.protocol) && !u.search && !u.hash && !u.username && !u.password; }, 'Use a sanitized URL without credentials, query, or fragment'),
-  title: text, headings: z.array(text).max(30),
-  elements: z.array(z.object({ id, role: text, name: text, kind: z.enum(['link', 'button', 'field', 'section', 'text']), protected: z.boolean() }).strict()).max(100),
+  structureFingerprint:z.string().regex(/^[a-f0-9]{64}$/).optional(), title: text, headings: z.array(text).max(30),
+  elements: z.array(z.object({ id, role: text, name: text, kind: z.enum(['link', 'button', 'field', 'section', 'text']), protected: z.boolean(), required:z.boolean().optional(), inputType:z.string().max(30).optional(), groupLabel:z.string().max(160).optional(), constraints:z.object({min:z.string().max(80).optional(),max:z.string().max(80).optional(),minLength:z.number().int().nonnegative().optional(),maxLength:z.number().int().nonnegative().optional()}).strict().optional(), validation:z.object({invalid:z.boolean(),messages:z.array(text).max(3)}).strict().optional() }).strict()).max(100),
   instructions: z.array(z.object({ elementId: id, text }).strict()).max(100),
 }).strict().refine(s => new Set(s.elements.map(e => e.id)).size === s.elements.length, 'Duplicate target IDs');
 export type PageSnapshot = z.infer<typeof snapshotSchema>;
@@ -22,14 +22,18 @@ export const screenshotSchema = z.object({
 export type Screenshot = z.infer<typeof screenshotSchema>;
 export const sourceSchema = z.object({ id, url: z.string().url(), text, retrievedAt: z.string(), synthetic: z.boolean() }).strict();
 export type SourceExcerpt = z.infer<typeof sourceSchema>;
-const journeyFields = { journey: z.array(z.string().min(1).max(160)).max(6).optional(), stage: z.string().max(160).optional(), visualObservation: text.optional() };
+const observationSchema=z.object({text,elementId:id.nullable(),basis:z.enum(['page','image','source']),sourceId:id.optional()}).strict();
+const evidenceSchema=z.object({type:z.enum(['navigation','section-change','user-confirmation']),description:text,elementId:id.nullable()}).strict();
+export const pageChangeSchema=z.object({event:z.string().max(80),previousTitle:z.string().max(2000).nullable(),addedLabels:z.array(z.string().max(160)).max(10),removedLabels:z.array(z.string().max(160)).max(10),visibleErrors:z.number().int().nonnegative()}).strict();
+export type PageChange=z.infer<typeof pageChangeSchema>;
+const journeyFields = { journey: z.array(z.string().min(1).max(160)).max(6).optional(), stage: z.string().max(160).optional(), visualObservation: text.optional(), observations:z.array(observationSchema).max(4).optional(), changeSummary:text.nullable().optional() };
 export const resultSchema = z.discriminatedUnion('kind', [
-  z.object({ ...journeyFields, kind: z.literal('guidance'), instruction: text, explanation: text, targetId: id.nullable(), sourceIds: z.array(id).max(10), expectedOutcome: z.enum(['navigation', 'user-confirmation']) }).strict(),
+  z.object({ ...journeyFields, kind: z.literal('guidance'), instruction: text, explanation: text, targetId: id.nullable(), sourceIds: z.array(id).max(10), expectedOutcome: z.enum(['navigation', 'user-confirmation']), completionEvidence:evidenceSchema.optional() }).strict(),
   z.object({ ...journeyFields, kind: z.literal('clarification'), question: text }).strict(),
   z.object({ ...journeyFields, kind: z.literal('unsupported'), reason: text }).strict(),
 ]);
 export type PlannerResult = z.infer<typeof resultSchema>;
-export type PlannerInput = { task: string; snapshot: PageSnapshot; sources: SourceExcerpt[]; history: string[]; screenshot?: Screenshot; validationFeedback?: string };
+export type PlannerInput = { task: string; snapshot: PageSnapshot; sources: SourceExcerpt[]; history: string[]; screenshot?: Screenshot; validationFeedback?: string; pageChange?: PageChange };
 export type Planner = (input: PlannerInput) => Promise<unknown>;
 export const eventSchema = z.object({ eventId: id, stepId: id, pageId: id, revision: z.number().int().positive(), type: z.enum(['navigation-observed', 'page-updated', 'user-confirmed', 'help-requested', 'clarification-answered']), snapshot: snapshotSchema.optional(), screenshot: screenshotSchema.optional(), answer: text.optional() }).strict();
 export type ProgressEvent = z.infer<typeof eventSchema>;
@@ -39,7 +43,7 @@ export const taskStateSchema = z.object({
  status: z.enum(['clarifying','waiting-for-user','unsupported','paused']), result: resultSchema,
  sources: z.array(sourceSchema), workflowStatus: z.string(), task: text,
  journey: z.array(z.string().max(160)).max(6), stage: z.string().max(160).optional(),
- analysis: z.object({ input: z.enum(['text','image+text']), imageStatus: z.enum(['not-requested','analyzed','unverified','failed']), observation: z.string().nullable(), provider: z.string() }),
+ analysis: z.object({ input: z.enum(['text','image+text']), imageStatus: z.enum(['not-requested','analyzed','unverified','failed']), observation: z.string().nullable(), provider: z.string(), cache:z.enum(['hit','miss','coalesced','bypass']).optional(), cacheStore:z.string().optional(), providerCalls:z.number().int().nonnegative().optional(), retryAfterSeconds:z.number().optional() }),
 });
 export type TaskState = z.infer<typeof taskStateSchema>;
 /** Workflow 4 supplies retrieval; only approved public excerpts belong here. */
