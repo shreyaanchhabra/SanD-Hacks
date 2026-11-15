@@ -1,8 +1,12 @@
 {
   "manifest_version": 3,
   "name": "Exode Mascot",
-  "version": "1.0.1",
-  "description": "Shows the ExodeUI ip-2016 mascot in the bottom-right corner of web pages.",
+  "version": "1.1.1",
+  "description": "Shows the ExodeUI ip-2016 mascot and can speak its messages.",
+  "permissions": ["storage"],
+  "host_permissions": ["https://api.elevenlabs.io/*"],
+  "background": { "service_worker": "background.js" },
+  "options_page": "options.html",
   "web_accessible_resources": [
     {
       "resources": ["exode-mascot.js", "files/ip-2016.bexode"],
