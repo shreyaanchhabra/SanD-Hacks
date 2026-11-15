@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createService } from '../src/service.js';
-import { planStep, mockPlanner } from '../src/planner.js';
+import { z } from 'zod';
+import { planStep, mockPlanner, responseSchema } from '../src/planner.js';
 import { startPage, formPage, sources } from '../src/fixtures.js';
 import { snapshotSchema } from '../src/contracts.js';
 
@@ -78,4 +79,20 @@ test('demo planner accepts live-generated target IDs without hardcoded DOM IDs',
   const result = await planStep({ ...input(), snapshot: live }, mockPlanner);
   assert.equal(result.kind, 'guidance');
   if (result.kind === 'guidance') assert.equal(result.targetId, 'ap-19');
+});
+test('invalid citation retry explains the source/target distinction to the planner',async()=>{
+ const feedback=[];const result=await planStep(input(),async context=>{feedback.push(context.validationFeedback);return{kind:'guidance',instruction:'Read the energy link.',explanation:'Page context',targetId:'energy-link',sourceIds:context.validationFeedback?[]:['energy-link'],expectedOutcome:'navigation'};});
+ assert.equal(result.kind,'guidance');assert.match(feedback[1],/Element IDs are not citation IDs/);
+});
+
+test('provider schema restricts target IDs and forbids citations when source list is empty',()=>{
+ const schema=z.fromJSONSchema(responseSchema({...input(),sources:[]}));
+ const valid={kind:'guidance',instruction:'Read the link.',explanation:'Page label.',targetId:'energy-link',sourceIds:[],expectedOutcome:'navigation'};
+ assert.equal(schema.safeParse(valid).success,true);
+ assert.equal(schema.safeParse({...valid,sourceIds:['energy-link']}).success,false);
+ assert.equal(schema.safeParse({...valid,targetId:'made-up-target'}).success,false);
+});
+test('a real provider rate limit is visible rather than reported as ambiguous guidance',async()=>{
+ const result=await planStep(input(),async()=>{throw Object.assign(new Error('private provider error'),{status:429});});
+ assert.equal(result.kind,'unsupported');if(result.kind==='unsupported')assert.match(result.reason,/rate limit/);
 });

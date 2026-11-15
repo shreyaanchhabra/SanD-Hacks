@@ -13,3 +13,5 @@ npm run demo
 The default demo needs no credentials. It uses real Mastra and clearly labeled mocks for the other sponsor integrations.
 
 Live page text and controls: [Chrome connector setup](extension-live/README.md).
+
+Unified mascot + page tools + Gemini/Mastra, with optional cropped screenshots: [combined-extension](combined-extension/README.md). Load this folder for the linked experience.

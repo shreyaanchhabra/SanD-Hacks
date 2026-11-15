@@ -10,7 +10,7 @@ const handle = createApi({ token, service, allowedExtensionOrigin: process.env.A
 const server = createServer(async (req, res) => {
   try {
     const chunks: Buffer[] = []; let size = 0;
-    for await (const chunk of req) { size += chunk.length; if (size > 65536) { res.writeHead(413); res.end('Request too large'); return; } chunks.push(chunk); }
+    for await (const chunk of req) { size += chunk.length; if (size > 1600000) { res.writeHead(413); res.end('Request too large'); return; } chunks.push(chunk); }
     const headers = new Headers();
     for (const [name, value] of Object.entries(req.headers)) if (value) headers.set(name, Array.isArray(value) ? value.join(',') : value);
     const response = await handle(new Request(`http://127.0.0.1:${port}${req.url ?? '/'}`, { method: req.method, headers, ...(['GET', 'HEAD'].includes(req.method ?? 'GET') ? {} : { body: Buffer.concat(chunks) }) }));

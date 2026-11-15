@@ -1,0 +1,47 @@
+{
+  "manifest_version": 3,
+  "name": "AccessPatch \u2014 Guided Companion",
+  "version": "0.4.0",
+  "description": "A mascot companion for user-led page guidance, with optional reviewed visual help.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage"
+  ],
+  "host_permissions": [
+    "http://127.0.0.1/*"
+  ],
+  "action": {
+    "default_title": "Open AccessPatch"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "options_page": "options.html",
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "exode-mascot.js",
+        "files/ip-2016.bexode"
+      ],
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ]
+    }
+  ],
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAnKi1/EIOpq/h9qMEdaDJhYEwmZNAzRBRaT3EsIOru9E/i4Kc7zZViES9CnhyE2h3yjaovUkktSu46jvlcgDMTDaybNP6ryyxdSuiFK4kelVFiAfCBP0PdoLfpZDMfl6f5zimVgkjdghLQATkIQAQEzxhI4+q/WqbOhOCE2qwchfVjgLQs0ZyekJp1XuE4tNz688nMLCcDqSfjB9qhHviXEj679SrhMkvAiUtamNTkEug6ryh1CKTqIF+mqwE5xXO7GTs83nD8F+BCk2+m8qRt9FtL1clJDfpDeAShjMBU1raso1o2hWdOc91wedNRjQ9taC1lJ2OSrz+jJjlx2gRhwIDAQAB",
+  "optional_host_permissions": [
+    "http://*/*",
+    "https://*/*"
+  ],
+  "commands": {
+    "_execute_action": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+K",
+        "mac": "Command+Shift+K"
+      },
+      "description": "Open or close the AccessPatch conversation"
+    }
+  }
+}

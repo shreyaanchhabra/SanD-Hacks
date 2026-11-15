@@ -10,4 +10,4 @@ const next = await service.event(first.runId, { eventId: 'demo-navigation', step
 console.log(JSON.stringify(next, null, 2));
 console.log('\n3. Speech adapter:', await service.speak(next.runId, next.stepId));
 console.log('\n4. Paused:', (await service.pause(next.runId)).status);
-console.log('Done. No real application was submitted. No data persists after exit.');
+console.log('Done. No real application was submitted. Local task state follows the configured storage policy; see README.');

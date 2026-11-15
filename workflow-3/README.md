@@ -54,10 +54,16 @@ npm run build
 
 Tests exercise actual Mastra waiting/resumption, clarification, pause, duplicate/stale events, invalid target/source IDs, malformed proposals, provider errors, strict snapshots, and API authorization/origin checks.
 
-This is an independent development backend, not a deployed product. Task records expire after one idle hour; restarting clears everything. Local caps are 100 tasks and 500 events per task. No website is clicked, filled, submitted, or changed. The separate `../extension-live` connector provides a development popup and live DOM capture. There is no production mascot UI, real speech, official source crawl, cross-user authentication, or durable restart recovery yet. Keep inputs fictional during development. Before deployment, add distributed concurrency/limits, durable cleanup, per-user isolation, explicit sharing controls, and end-to-end extension tests.
+This is an independent development backend, not a deployed product. Task access expires after one idle hour. Configured runs persist in local task files and Mastra SQLite checkpoints across backend restarts; disk retention is separate. Local caps are 100 tasks and 500 events per task. No website is clicked, filled, submitted, or changed. The separate `../extension-live` connector provides a development popup and live DOM capture. There is no production mascot UI, real speech, official source crawl, cross-user authentication, or durable restart recovery yet. Keep inputs fictional during development. Before deployment, add distributed concurrency/limits, durable cleanup, per-user isolation, explicit sharing controls, and end-to-end extension tests.
 
 Implementation references: [Mastra suspend/resume](https://mastra.ai/docs/workflows/suspend-and-resume), [Gemini structured output](https://ai.google.dev/gemini-api/docs/structured-output). Dependency versions are captured in `package-lock.json`.
 
 ## Live page text and controls
 
 See [live connector setup](../extension-live/README.md). Run `npm run test:browser` for the Chromium integration checks (first run: `npx playwright install chromium`). `npm run demo:page` serves the fictional live DOM fixture. The connector works in mock mode for the narrow sample journey; general guidance requires live Gemini configuration.
+
+## Unified companion and images
+
+Use [combined-extension](../combined-extension/README.md) for the connected mascot/panel. Task and event requests accept an optional consented `screenshot` bound to the current page/revision. Images bypass Mastra checkpoint input via a temporary turn-scoped lookup and are discarded after planning. Visual-only guidance may return `targetId: null`. Optional ElevenLabs speech is configured server-side. See the combined extension guide for crop review and installation.
+
+The development server now uses durable local `.data` storage by default. `createService()` unit fixtures still default to memory. Keep `.data` out of Git. See combined-extension/README.md for automatic-follow consent, local checkpoint retention, and shortcut setup. The live configuration supplies no synthetic public-source excerpts; Bright Data remains disconnected until its real adapter is integrated.

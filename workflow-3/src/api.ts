@@ -15,15 +15,15 @@ export function createApi({ token, service = createService(), allowedExtensionOr
     if (provided.length !== expected.length || !timingSafeEqual(provided, expected)) return json({ error: 'Unauthorized' }, 401);
     const path = new URL(request.url).pathname;
     try {
-      if (request.method === 'GET' && path === '/api/health') return json({ modes: service.modes, persistence: 'memory; restart clears all tasks' });
+      if (request.method === 'GET' && path === '/api/health') return json({ modes: service.modes, persistence: service.persistence });
       const match = /^\/api\/tasks\/([a-f0-9-]+)(?:\/(events|pause|resume|speech))?$/.exec(path);
       if (request.method === 'GET' && match && !match[2]) return json(service.get(match[1]));
       if (request.method !== 'POST') return json({ error: 'Not found' }, 404);
       if (!request.headers.get('content-type')?.startsWith('application/json')) return json({ error: 'JSON required' }, 415);
       const raw = await request.text();
-      if (Buffer.byteLength(raw) > 65536) return json({ error: 'Request too large' }, 413);
+      if (Buffer.byteLength(raw) > 1600000) return json({ error: 'Request too large' }, 413);
       const body = JSON.parse(raw);
-      if (path === '/api/tasks') { const { task, snapshot } = startSchema.parse(body); return json(await service.start(task, snapshot), 201); }
+      if (path === '/api/tasks') { const { task, snapshot, screenshot } = startSchema.parse(body); return json(await service.start(task, snapshot, screenshot), 201); }
       if (match) {
         const [, id, action] = match;
         if (action === 'events') return json(await service.event(id, body));
