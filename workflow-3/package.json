@@ -15,7 +15,8 @@
     "test:browser": "playwright test",
     "demo:page": "node tests/browser/fixture-server.mjs",
     "cache:check": "node --import tsx --env-file-if-exists=.env scripts/check-tiger.ts",
-    "build:fingerprint": "node scripts/build-fingerprint.mjs"
+    "build:fingerprint": "node scripts/build-fingerprint.mjs",
+    "sources:check": "node --import tsx --env-file-if-exists=.env scripts/check-brightdata.ts"
   },
   "dependencies": {
     "@google/genai": "^3.3.0",

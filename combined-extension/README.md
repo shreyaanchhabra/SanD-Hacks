@@ -76,3 +76,9 @@ A real Gemini image-only request produced visible findings; a later fictional fo
 Beside the mascot, **Why this step?** separates observed page facts, what changed, and what to look for next. Saved guidance has a visible cache indicator; cooldown messages explain when another model call can be attempted. Form context includes groups, required status, types, and constraints without sending filled values. Screenshots still require crop review and explicit sharing.
 
 Tiger Data is optional: set `TIGER_DATABASE_URL` in the backend `.env` and run `npm run cache:check` from `workflow-3`. Only reusable static form structure and guidance enter that cache. Answers, raw screenshots, and task progress do not. Until a database is configured, the backend uses local cache storage. Local task checkpoints remain separate.
+
+## Public instructions (0.5.1)
+
+The existing Mastra/Gemini flow searches for supporting public instructions on demand using Bright Data Bing SERP, then the backend reads up to three approved public results through normal HTTPS. Government and recognized nonprofit publishers are labeled separately. The mascot shows retrieval status, a collapsible preparation checklist, source excerpts and retrieval times. If lookup fails, live-page guidance continues with an explicit message. Reload the extension and refresh the website to see these controls.
+
+Search and extraction succeeded against public government pages in a live check. Source requirements can be jurisdiction-specific; the guide should ask which state applies before using a state-specific checklist. Bright Data's restricted government proxy is not used for page fetching. API credentials remain in the backend only.

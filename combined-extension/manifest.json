@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "AccessPatch \u2014 Guided Companion",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "A mascot companion for user-led page guidance, with optional reviewed visual help.",
   "permissions": [
     "activeTab",

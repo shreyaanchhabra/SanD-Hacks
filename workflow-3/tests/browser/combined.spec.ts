@@ -3,8 +3,8 @@ import path from 'node:path';
 import {writeFileSync} from 'node:fs';
 import {createService} from '../../src/service.js';
 import {createApi} from '../../src/api.js';
-async function setup(page, planner?, revealClosed = true, speech?, follow = false, failAutoOnce = false) {
- const service=createService({...(planner?{planner}:{}),...(speech?{speech}:{})});const api=createApi({token:'test',service});const storage={};const calls=[];let automaticFailures=0;
+async function setup(page, planner?, revealClosed = true, speech?, follow = false, failAutoOnce = false, sources?) {
+ const service=createService({...(planner?{planner}:{}),...(speech?{speech}:{}),...(sources?{sources}:{})});const api=createApi({token:'test',service});const storage={};const calls=[];let automaticFailures=0;
  await page.exposeFunction('extensionRpc',async message=>{
   calls.push(message);
   let result;
@@ -21,7 +21,7 @@ async function setup(page, planner?, revealClosed = true, speech?, follow = fals
  });
  await page.addInitScript(reveal=>{
   if(reveal){const attach=Element.prototype.attachShadow;Element.prototype.attachShadow=function(options){return attach.call(this,{...options,mode:'open'});};}
-  globalThis.chrome={runtime:{getURL:p=>location.origin+'/'+p,onMessage:{addListener(){}},sendMessage:message=>globalThis.extensionRpc(message)}};
+  globalThis.chrome={storage:{local:{get:async()=>({}),set:async()=>{}}},runtime:{getURL:p=>location.origin+'/'+p,onMessage:{addListener(){}},sendMessage:message=>globalThis.extensionRpc(message)}};
  },revealClosed);
  await page.goto('http://127.0.0.1:4320');
  const injectGuide=async()=>{await page.addStyleTag({path:path.resolve('../combined-extension/tools.css')});
@@ -306,4 +306,18 @@ test('same-name fields remain distinct across form groups in local search',async
  await page.evaluate(()=>{const form=document.createElement('form');form.innerHTML='<fieldset><legend>Applicant</legend><label for="adult-name">First name</label><input id="adult-name"></fieldset><fieldset><legend>Child</legend><label for="child-name">First name</label><input id="child-name"></fieldset>';document.body.append(form);});
  await guide.getByRole('button',{name:'Tools & settings',exact:true}).click();await guide.getByLabel('Find a place on this page').fill('first name');await guide.getByRole('button',{name:'Find on page',exact:true}).click();
  await expect(guide.getByRole('button',{name:'Show First name in Applicant',exact:true})).toBeVisible();await expect(guide.getByRole('button',{name:'Show First name in Child',exact:true})).toBeVisible();
+});
+
+test('mascot renders a cited preparation checklist with source evidence',async({page})=>{
+ await setup(page,async input=>({kind:'guidance',instruction:'Read the Household label.',explanation:'Preparation help from the supplied demo source.',targetId:input.snapshot.elements[0].id,sourceIds:[input.sources[0].id],checklist:[{text:'Read the listed preparation requirements.',sourceId:input.sources[0].id}],expectedOutcome:'user-confirmation'}));
+ const guide=page.locator('#accesspatch-guide');await guide.getByLabel('Your task').fill('What documents are required for energy assistance?');await guide.getByRole('button',{name:'Start guiding',exact:true}).click();
+ await guide.getByText('Preparation checklist',{exact:true}).click();await expect(guide.getByLabel('Preparation checklist')).toContainText('Read the listed preparation requirements.');
+ await guide.getByText('Sources & instructions',{exact:true}).click();await expect(guide.getByLabel('Sources & instructions')).toContainText('Retrieved');await expect(guide.getByLabel('Sources & instructions').locator('a')).toHaveAttribute('href',/https:/);
+});
+
+test('external retrieval failure is visible beside the mascot while page guidance remains usable',async({page})=>{
+ const sources={mode:'configured',retrieveContext:async()=>{throw Error('private provider details');},outcomeFor:()=>({status:'provider-failure',message:'Bright Data restricts access to this public site. Page guidance still works.'})};
+ await setup(page,async input=>({kind:'guidance',instruction:'Read Household.',explanation:'Use the original page instructions.',targetId:input.snapshot.elements[0].id,sourceIds:[],expectedOutcome:'user-confirmation'}),true,undefined,false,false,sources);
+ const guide=page.locator('#accesspatch-guide');await guide.getByLabel('Your task').fill('What documents are required?');await guide.getByRole('button',{name:'Start guiding',exact:true}).click();
+ await expect(guide.getByLabel('Public instructions status')).toContainText('restricts access');await expect(guide.locator('.bubble')).toContainText('Read Household.');await expect(guide.getByRole('button',{name:'Show me',exact:true})).toBeEnabled();await expect(guide.getByLabel('Preparation checklist')).toBeHidden();await expect(guide).not.toContainText('private provider details');
 });

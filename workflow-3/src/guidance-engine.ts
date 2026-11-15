@@ -4,7 +4,7 @@ import {join} from 'node:path';
 import {z} from 'zod';
 import {resultSchema,type Planner,type PlannerInput,type PlannerResult} from './contracts.js';
 import {planStep} from './planner.js';
-export const CACHE_VERSION='form-evidence-v2';
+export const CACHE_VERSION='form-evidence-v3';
 export const cacheEntrySchema=z.object({version:z.literal(CACHE_VERSION),createdAt:z.number(),expiresAt:z.number(),result:resultSchema,form:z.record(z.string(),z.unknown()).optional()});
 export type CacheEntry=z.infer<typeof cacheEntrySchema>;
 export interface GuidanceCache{mode:string;get(key:string):Promise<CacheEntry|null>;put(key:string,entry:CacheEntry):Promise<void>}
@@ -39,7 +39,7 @@ export function reusableEntry(entry:CacheEntry):CacheEntry{
  const fieldsSchema=z.array(z.object({id:z.string(),name:z.string(),kind:z.literal('field'),role:z.string().optional(),required:z.boolean().optional(),inputType:z.string().optional(),groupLabel:z.string().optional(),constraints:z.object({min:z.string().optional(),max:z.string().optional(),minLength:z.number().optional(),maxLength:z.number().optional()}).optional()}));
  const fields=entry.form?fieldsSchema.parse(entry.form.fields??[]):[];
  const form=entry.form&&fields.length?{origin:new URL(String(entry.form.origin)).origin+'/',fields}:undefined;
- return{version:CACHE_VERSION,createdAt:entry.createdAt,expiresAt:entry.expiresAt,result:{kind:'guidance',instruction:result.instruction,explanation:result.explanation,targetId:result.targetId,sourceIds:result.sourceIds,expectedOutcome:result.expectedOutcome,...(result.completionEvidence?{completionEvidence:result.completionEvidence}:{})},...(form?{form}:{})};
+ return{version:CACHE_VERSION,createdAt:entry.createdAt,expiresAt:entry.expiresAt,result:{kind:'guidance',instruction:result.instruction,explanation:result.explanation,targetId:result.targetId,sourceIds:result.sourceIds,...(result.checklist?{checklist:result.checklist}:{}),expectedOutcome:result.expectedOutcome,...(result.completionEvidence?{completionEvidence:result.completionEvidence}:{})},...(form?{form}:{})};
 }
 function freshEvidence(input:PlannerInput,result:PlannerResult):PlannerResult{
  if(result.kind!=='guidance')return result;

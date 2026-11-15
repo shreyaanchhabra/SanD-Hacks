@@ -21,21 +21,23 @@ export function createService(options: { planner?: Planner; sources?: SourceAdap
   const contextSchema = inputSchema.extend({ excerpts: z.array(sourceSchema).max(10), sourceContext: z.array(sourceSchema).max(10), retrieval: retrievalSchema });
   const turnSchema = z.object({ result: resultSchema, sources: z.array(sourceSchema), sourceContext: z.array(sourceSchema).max(10), retrieval: retrievalSchema, usage:z.object({cache:z.enum(['hit','miss','coalesced','bypass']),status:z.string(),store:z.string(),providerCalls:z.number(),retryAfterSeconds:z.number().optional()}).optional() });
   const retrieval = createStep({ id: 'retrieve-public-context', inputSchema, outputSchema: contextSchema, execute: async ({ inputData }) => {
-    const decision = decideRetrieval(inputData.task, inputData.snapshot, inputData.priorSources);
+    let researchTask=inputData.task;
+    try{const last=JSON.parse(inputData.history.at(-1)??'{}');if(last.event==='help-requested'&&typeof last.userHelp==='string')researchTask+='\n'+last.userHelp;}catch{}
+    const decision = decideRetrieval(researchTask, inputData.snapshot, inputData.priorSources);
     if (decision.action === 'page-only') return { ...inputData, excerpts: [], sourceContext: inputData.priorSources, retrieval: { status: 'not-needed' as const } };
     if (decision.action === 'reuse') {
       const currentOrigin = new URL(inputData.snapshot.url).origin;
-      const excerpts = inputData.priorSources.filter(source => new URL(source.url).origin === currentOrigin);
+      const excerpts = inputData.priorSources.filter(source => new URL(source.url).origin === currentOrigin && Date.now()-Date.parse(source.retrievedAt)<86400000);
       return { ...inputData, excerpts, sourceContext: inputData.priorSources, retrieval: { status: 'cached' as const } };
     }
     if (sourceAdapter.mode === 'not-configured') return { ...inputData, excerpts: [], sourceContext: inputData.priorSources, retrieval: { status: 'not-configured' as const, message: 'External instructions unavailable.' } };
     try {
-      const fetched = z.array(sourceSchema).max(10).parse(await sourceAdapter.retrieveContext(inputData.task, inputData.snapshot));
-      const outcome = sourceAdapter.outcomeFor?.(inputData.task, inputData.snapshot) ?? { status: fetched.length ? 'live' : 'no-results' };
+      const fetched = z.array(sourceSchema).max(10).parse(await sourceAdapter.retrieveContext(researchTask, inputData.snapshot));
+      const outcome = sourceAdapter.outcomeFor?.(researchTask, inputData.snapshot) ?? { status: fetched.length ? 'live' : 'no-results' };
       const sourceContext = [...inputData.priorSources, ...fetched].filter((source, index, all) => all.findIndex(other => other.id === source.id) === index).slice(-10);
       return { ...inputData, excerpts: sourceContext, sourceContext, retrieval: retrievalSchema.parse(outcome) };
     } catch {
-      const outcome: RetrievalOutcome = sourceAdapter.outcomeFor?.(inputData.task, inputData.snapshot) ?? { status: 'provider-failure', message: 'External instructions unavailable.' };
+      const outcome: RetrievalOutcome = sourceAdapter.outcomeFor?.(researchTask, inputData.snapshot) ?? { status: 'provider-failure', message: 'External instructions unavailable.' };
       return { ...inputData, excerpts: [], sourceContext: inputData.priorSources, retrieval: retrievalSchema.parse(outcome) };
     }
   } });

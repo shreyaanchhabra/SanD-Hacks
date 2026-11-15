@@ -52,3 +52,10 @@ test('a changed destination fingerprint forces a fresh proposal even with the sa
  await engine.plan({...input(),snapshot:{...formPage,structureFingerprint:'a'.repeat(64)}});
  await engine.plan({...input(),snapshot:{...formPage,structureFingerprint:'b'.repeat(64)}});assert.equal(calls,2);
 });
+
+test('cached source-backed guidance preserves the validated preparation checklist',async()=>{
+ const source={id:'official',url:'https://www.usa.gov/benefits',text:'Read the preparation requirements.',retrievedAt:new Date().toISOString(),synthetic:false};
+ const engine=new GuidanceEngine({scope:'owner',model:'checklist-model',planner:async()=>({...result('household-label'),sourceIds:['official'],checklist:[{text:'Read the preparation requirements.',sourceId:'official'}]})});
+ const request={...input(),sources:[source]};const first=await engine.plan(request);const second=await engine.plan(request);
+ assert.equal(second.usage.cache,'hit');assert.deepEqual(second.result.checklist,first.result.checklist);
+});
