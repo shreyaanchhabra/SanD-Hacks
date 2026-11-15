@@ -1,0 +1,2 @@
+# PDF Helper
+Approved in chat: automatically recognize arriving at a PDF, offer Open with AccessPatch, then render locally with selectable fields and mascot questions with sources. Keep original available. Start with text and fillable PDFs, no OCR. Entered values stay local. Use bundled PDF.js, existing local API and mascot. Detect HTTP PDFs by URL and response MIME; no upload of PDF bytes. Preserve existing website flow.

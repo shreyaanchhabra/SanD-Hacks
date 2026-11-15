@@ -10,7 +10,7 @@ const MAX_EXCERPTS = 6;
 const MAX_RESPONSE_BYTES = 1_000_000;
 const OFFICIAL_HOSTS = new Set(['usa.gov', 'india.gov.in']);
 const NONPROFIT_HOSTS=new Set(['211.org','www.211.org','ncoa.org','www.ncoa.org','benefitscheckup.org','www.benefitscheckup.org']);
-const TOPIC_WORDS = new Set(['apply', 'application', 'benefit', 'checklist', 'definition', 'document', 'documents', 'eligibility', 'food', 'form', 'health', 'housing', 'identity', 'income', 'insurance', 'household', 'required', 'requirements', 'utility', 'utilities', 'energy', 'bill', 'assistance', 'heating', 'electric', 'liheap']);
+const TOPIC_WORDS = new Set(['apply', 'application', 'benefit', 'checklist', 'definition', 'document', 'documents', 'eligibility', 'food', 'form', 'health', 'housing', 'identity', 'income', 'insurance', 'household', 'required', 'requirements', 'utility', 'utilities', 'energy', 'bill', 'assistance', 'heating', 'electric', 'liheap', 'employer', 'employee', 'wages', 'tax', 'withholding', 'business']);
 const STATES='alabama|alaska|arizona|arkansas|california|colorado|connecticut|delaware|florida|georgia|hawaii|idaho|illinois|indiana|iowa|kansas|kentucky|louisiana|maine|maryland|massachusetts|michigan|minnesota|mississippi|missouri|montana|nebraska|nevada|new hampshire|new jersey|new mexico|new york|north carolina|north dakota|ohio|oklahoma|oregon|pennsylvania|rhode island|south carolina|south dakota|tennessee|texas|utah|vermont|virginia|washington|west virginia|wisconsin|wyoming|district of columbia'.split('|');
 function taskStates(task:string){return STATES.filter(state=>new RegExp('\\b'+state+'\\b','i').test(task));}
 const cacheEntrySchema = z.object({ expiresAt: z.number().int().positive(), sources: z.array(z.object({ id: z.string(), url: z.string().url(), text: z.string(), retrievedAt: z.string(), synthetic: z.literal(false) }).strict()).max(10) }).strict();
@@ -74,15 +74,16 @@ export class BrightDataSourceAdapter implements SourceAdapter {
   }
   private async lookup(task: string, snapshot: PageSnapshot, key: string) {
     try {
-      const discovered = await this.options.provider.discover(buildSearchQuery(task, snapshot));
-      const candidates = uniqueUrls([...discovered, snapshot.url]).filter(isApprovedPublicUrl).slice(0, MAX_FETCHED_PAGES);
+      const linked = uniqueUrls(snapshot.instructionLinks ?? []).filter(isApprovedPublicUrl).slice(0, MAX_FETCHED_PAGES);
+      const discovered = linked.length ? [] : await this.options.provider.discover(buildSearchQuery(task, snapshot));
+      const candidates = uniqueUrls([...linked, ...discovered, ...(linked.length?[]:[snapshot.url])]).filter(isApprovedPublicUrl).slice(0, MAX_FETCHED_PAGES);
       const sources: SourceExcerpt[] = [];
       for (const candidate of candidates) {
         let page;
         try { page = await this.options.provider.fetchPage(candidate); }
         catch(error) {
           if(error instanceof RetrievalError || statusCode(error)===429){if(!sources.length)throw error;break;}
-          if(candidate===candidates.at(-1)&&!sources.length)throw error;
+          if(!linked.length&&candidate===candidates.at(-1)&&!sources.length)throw error;
           continue;
         }
         if (!isApprovedPublicUrl(page.url)) continue;
@@ -90,6 +91,10 @@ export class BrightDataSourceAdapter implements SourceAdapter {
           if (sources.length >= MAX_EXCERPTS) break;
           sources.push({ id: sourceId(page.url, text), url: canonicalUrl(page.url), text, retrievedAt: new Date(this.now()).toISOString(), synthetic: false });
         }
+      }
+      if(linked.length && !sources.length){
+        const found=uniqueUrls(await this.options.provider.discover(buildSearchQuery(task,snapshot))).filter(isApprovedPublicUrl).filter(url=>!linked.includes(url)).slice(0,MAX_FETCHED_PAGES);
+        for(const url of found){try{const page=await this.options.provider.fetchPage(url);if(!isApprovedPublicUrl(page.url))continue;for(const text of extractRelevantPassages(page.html,task,snapshot))sources.push({id:sourceId(page.url,text),url:canonicalUrl(page.url),text,retrievedAt:new Date(this.now()).toISOString(),synthetic:false});}catch{}}
       }
       const deduped = sources.filter((source, index, all) => all.findIndex(other => other.id === source.id) === index);
       await this.options.cache.put(key, { expiresAt: this.now() + SOURCE_TTL_MS, sources: deduped });
@@ -166,7 +171,7 @@ class BrightDataHttpProvider implements BrightDataProvider {
   }
 }
 
-function contextKey(task: string, snapshot: PageSnapshot) { return createHash('sha256').update(JSON.stringify({ origin: new URL(snapshot.url).origin, task: safeTaskTerms(task), ...(taskStates(task).length?{states:taskStates(task)}:{}), need: informationNeed(snapshot) })).digest('hex'); }
+function contextKey(task: string, snapshot: PageSnapshot) { return createHash('sha256').update(JSON.stringify({ origin: new URL(snapshot.url).origin, form: snapshot.title.match(/W-2.*?(?:20\d{2}|unconfirmed)/i)?.[0], instructionLinks:snapshot.instructionLinks, task: safeTaskTerms(task), ...(taskStates(task).length?{states:taskStates(task)}:{}), need: informationNeed(snapshot) })).digest('hex'); }
 function sourceId(url: string, text: string) { return `bd-${createHash('sha256').update(`${url}\n${text}`).digest('hex').slice(0, 24)}`; }
 function canonicalUrl(value: string) { const url = new URL(value); url.username = ''; url.password = ''; url.search = ''; url.hash = ''; return url.href; }
 function isApprovedPublicUrl(value: string) { try { const url = new URL(value); return url.protocol === 'https:' && !url.username && !url.password && !isPrivateHost(url.hostname) && (isOfficialHost(url.hostname)||NONPROFIT_HOSTS.has(url.hostname.toLowerCase())); } catch { return false; } }
@@ -176,6 +181,8 @@ function uniqueUrls(values: string[]) { return [...new Set(values.map(value => {
 function safeTaskTerms(task: string) { return [...new Set((task.toLowerCase().match(/[a-z]{3,}/g) ?? []).filter(word => TOPIC_WORDS.has(word)))].slice(0, 6); }
 function informationNeed(snapshot: PageSnapshot) { return snapshot.elements.filter(element => element.kind === 'field').map(element => element.name.toLowerCase().replace(/[^a-z ]/g, '')).map(value => (value.match(/[a-z]{3,}/g) ?? []).filter(word => TOPIC_WORDS.has(word)).join(' ')).filter(Boolean).slice(0, 5); }
 function buildSearchQuery(task: string, snapshot: PageSnapshot) {
+  const form=snapshot.title.match(/\bW-2\b(?:\s+20\d{2})?/i)?.[0];
+  if(form)return `${form} IRS instructions ${informationNeed(snapshot).join(' ')}`.slice(0,300);
   const publicTerms = [...taskStates(task), ...safeTaskTerms(task), ...informationNeed(snapshot).flatMap(value => value.match(/[a-z]{3,}/g) ?? [])];
   return `${[...new Set(publicTerms)].slice(0,10).join(' ')||'application instructions'} official nonprofit help`.slice(0,300);
 }

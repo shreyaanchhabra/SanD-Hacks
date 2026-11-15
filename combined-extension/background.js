@@ -1,9 +1,11 @@
+importScripts('pdf-routing.js');
 importScripts('voice-background.js');
 const BASE = 'http://127.0.0.1:4313';
 const pending = new Map();
 const generationKey=tabId=>`guide-generation-${tabId}`;
 async function inject(tabId, automatic=false){
  const tab=await chrome.tabs.get(tabId);
+ if(/\.pdf(?:[?#]|$)/i.test(tab.url||'')){if(!automatic)await chrome.storage.session.remove('pdf-original-'+tabId);await routePdf(tabId,tab.url);return;}
  if(!/^https?:/.test(tab.url||''))return;
  if(automatic){
   const binding=(await chrome.storage.session.get(`guide-${tabId}`))[`guide-${tabId}`];
@@ -26,9 +28,12 @@ chrome.runtime.onMessage.addListener((message,sender,reply)=>{
  if(sender.id!==chrome.runtime.id||message.target==='accesspatch-recorder'||message.type?.startsWith('voice-'))return;
  (async()=>{
   if(message.type==='open-settings'){await chrome.runtime.openOptionsPage();return{};}
-  if(!sender.tab?.id)throw new Error('Open the guide on a website.');
-  const tabId=sender.tab.id,key=`guide-${tabId}`;
+  let senderTab=sender.tab;
+  if(!senderTab&&sender.url?.startsWith(chrome.runtime.getURL('pdf-viewer.html')+'?')&&Number.isInteger(message.tabId)){const candidate=await chrome.tabs.get(message.tabId);if(candidate.url===sender.url)senderTab=candidate;}
+  if(!senderTab?.id)throw new Error('Open the guide on a website.');
+  const tabId=senderTab.id,key=`guide-${tabId}`;
   const binding=async()=> (await chrome.storage.session.get(key))[key]||{};
+  if(message.type==='pdf-original'){const url=new URL(message.url);if(!/^https?:$/.test(url.protocol)||url.username||url.password)throw new Error('Invalid PDF URL');await chrome.storage.session.set({['pdf-original-'+tabId]:url.href});await chrome.tabs.update(tabId,{url:url.href});return{};}
   if(message.type==='link-intent'){const prior=await binding();if(prior.autoFollow&&prior.state){const url=new URL(message.destination);if(/^https?:$/.test(url.protocol))await chrome.storage.session.set({[key]:{...prior,linkIntent:{destination:url.origin+url.pathname,time:Date.now()}}});}return{};}
   if(message.type==='load')return binding();
   if(message.type==='follow-status'){

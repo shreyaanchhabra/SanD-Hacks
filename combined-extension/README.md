@@ -123,3 +123,13 @@ Simple uses declarative hide patches in `simple-profile.js`, marks only host-doc
 USA.gov live verification confirmed nav/banner/footer hiding, main style preservation, unchanged guide bounds and opaque UI pixels, exact display restoration, and no page JavaScript errors. Transparent rounded corners show the changed webpage underneath and are excluded from pixel equality. India.gov.in returned Access Denied to both hostname variants: its semantic fallback selectors are implemented, but actual site-specific selectors and live acceptance remain unverified. Unknown popups are left alone rather than risking main content or extension UI.
 
 Reload the unpacked extension and refresh website tabs after updating. The corner panel collapses independently and starts collapsed on narrow screens.
+
+
+## PDF helper
+Reload the unpacked extension from this worktree. In connection settings, select **Enable IRS PDF helper** and accept the IRS-only site permission. Visiting an IRS `.pdf` URL (including links from USA.gov) now automatically opens an AccessPatch entry page. Select **Open with AccessPatch**, choose a field, and ask the mascot. Other `.pdf` URLs are recognized on sites already granted access. The toolbar also opens the viewer for an active PDF tab.
+
+PDF.js 6.5.438 is bundled under `vendor/pdfjs` (Apache-2.0 license included). PDF bytes and edited values stay in the browser. Only selected labels, detected form/year, approved public instruction links, and typed questions are sent through the existing backend. Public PDFs are fetched without cookies. Use **Download my copy** to save local edits and **View original** to return to the browser viewer. Toolbar activation can reopen AccessPatch afterward.
+
+Current scope: HTTP(S) URLs ending in `.pdf`, text PDFs and text/checkbox/select widgets. Scans, local files, authenticated downloads, radio widgets, and non-`.pdf` download endpoints are not supported. Identity detection currently recognizes W-2; other forms remain unconfirmed. Printed label selection can include personal text in a flattened PDF: select labels only. No live provider-quality claim is made by the mocked browser test.
+
+Verification: `npm test`, `npm run typecheck`, existing Playwright suite. For the real PDF renderer test, download the public 2026 IRS W-2 and run `PDF_TEST_FILE=/absolute/path/fw2.pdf node scripts/test-pdf-browser.mjs` from workflow-3. This uses the real renderer and mocks Chrome/backend responses; it checks value exclusion, field label/year detection, and sources on clarification.

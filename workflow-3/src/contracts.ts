@@ -6,6 +6,7 @@ export const snapshotSchema = z.object({
   url: z.string().url().max(2048).refine(value => { const u = new URL(value); return ['http:', 'https:'].includes(u.protocol) && !u.search && !u.hash && !u.username && !u.password; }, 'Use a sanitized URL without credentials, query, or fragment'),
   structureFingerprint:z.string().regex(/^[a-f0-9]{64}$/).optional(), title: text, headings: z.array(text).max(30),
   elements: z.array(z.object({ id, role: text, name: text, kind: z.enum(['link', 'button', 'field', 'section', 'text']), protected: z.boolean(), required:z.boolean().optional(), inputType:z.string().max(30).optional(), groupLabel:z.string().max(160).optional(), constraints:z.object({min:z.string().max(80).optional(),max:z.string().max(80).optional(),minLength:z.number().int().nonnegative().optional(),maxLength:z.number().int().nonnegative().optional()}).strict().optional(), validation:z.object({invalid:z.boolean(),messages:z.array(text).max(3)}).strict().optional() }).strict()).max(100),
+  instructionLinks: z.array(z.string().url().max(2048)).max(5).optional(),
   instructions: z.array(z.object({ elementId: id, text }).strict()).max(100),
 }).strict().refine(s => new Set(s.elements.map(e => e.id)).size === s.elements.length, 'Duplicate target IDs');
 export type PageSnapshot = z.infer<typeof snapshotSchema>;

@@ -19,3 +19,5 @@ document.getElementById('stop-follow').addEventListener('click',async()=>{
  await chrome.permissions.remove({origins:['http://*/*','https://*/*']});
  document.getElementById('follow-status').textContent='Automatic guidance off. No new pages will be sent automatically.';
 });
+
+document.getElementById('allow-pdf').onclick=async()=>{const ok=await chrome.permissions.request({origins:['https://www.irs.gov/*']});document.getElementById('pdf-status').textContent=ok?'IRS PDF detection enabled. Open or refresh an IRS PDF.':'Permission not granted.';};
