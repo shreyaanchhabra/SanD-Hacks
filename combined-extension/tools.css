@@ -34,3 +34,5 @@ html.apc-low-vision body .apc-image-note { background: #111 !important; color: #
 /* Reading focus never hides website content or navigation. */
 html.apc-simplify body { background-image: none !important; }
 html.apc-simplify [data-apc-reading-focus] { outline: 2px solid #829cb8 !important; outline-offset: 8px !important; }
+/* Profile activation is visible in the legacy page-tools toolbar too. */
+#accesspatch-companion-root button[aria-pressed="true"] { background: #ffe082; color: #263238; border-color: #a17a13; }

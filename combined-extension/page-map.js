@@ -35,7 +35,9 @@
     }
     highlighted = undefined;
   }
-  function snapshot() {
+  globalThis.__apHighlightedElement=()=>highlighted?.node;
+  function snapshot(){return globalThis.__apSimpleProfile?.withOriginalView?globalThis.__apSimpleProfile.withOriginalView(readSnapshot):readSnapshot();}
+  function readSnapshot() {
     if (!/^https?:$/.test(location.protocol)) throw new Error('Only ordinary HTTP/HTTPS pages are supported.');
     if (location.href !== lastURL) { restore(); pageId = crypto.randomUUID(); revision = 1; signature = ''; ids = new WeakMap(); counter = 0; lastURL = location.href; }
     privateTokens=Array.from(document.querySelectorAll('input:not([type=submit]):not([type=button]):not([type=reset]):not([type=checkbox]):not([type=radio]),textarea')).map(el=>el.value).filter(value=>value&&value.length>=3).sort((a,b)=>b.length-a.length);

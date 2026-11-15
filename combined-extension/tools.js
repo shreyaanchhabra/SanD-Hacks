@@ -121,12 +121,13 @@
 
   function refreshPresentation() {
     clearPresentationMarkers();
+    if(state.appearance==='simple')globalThis.__apSimpleProfile?.apply();else globalThis.__apSimpleProfile?.restore();
     if(state.appearance==='easy-read')applyLarger();else restoreLarger();
     if (state.simplified) {
       document.documentElement.classList.add("apc-simplify");
       applySimplification();
     }
-    if (state.appearance) document.documentElement.classList.add(`apc-${state.appearance}`);
+    if (state.appearance && state.appearance!=="simple") document.documentElement.classList.add(`apc-${state.appearance}`);
     if (state.appearance === "low-vision") applyLowVisionSurfaces();
   }
 
@@ -144,9 +145,9 @@
   const results=make('ul',undefined,'apc-results');panel.append(results);
   const shortcuts=make('div',undefined,'apc-shortcuts');const required=make('button','Find required fields');const errors=make('button','Find visible errors');const current=make('button','Current step');shortcuts.append(required,errors,current);panel.append(shortcuts);
   const reading=make('details');const summary=make('summary','Reading preferences');reading.append(summary);panel.append(reading);
-  const simplify=make('button','Reading focus'),easy=make('button','Larger text'),low=make('button','High contrast'),images=make('button','Show existing image descriptions'),restore=make('button','Restore page');reading.append(simplify,easy,low,images);panel.append(restore);
-  const modeButtons={simplify,easy,low};for(const button of Object.values(modeButtons))button.setAttribute('aria-pressed','false');
-  const setModes=()=>{for(const[key,button]of Object.entries(modeButtons))button.setAttribute('aria-pressed',String(key==='simplify'?state.simplified:state.appearance===(key==='easy'?'easy-read':'low-vision')));};
+  const simple=make('button','Simple'),simplify=make('button','Reading focus'),easy=make('button','Larger text'),low=make('button','High contrast'),images=make('button','Show existing image descriptions'),restore=make('button','Restore page');reading.append(simple,simplify,easy,low,images);panel.append(restore);
+  const modeButtons={simple,simplify,easy,low};for(const button of Object.values(modeButtons))button.setAttribute('aria-pressed','false');
+  const setModes=()=>{for(const[key,button]of Object.entries(modeButtons))button.setAttribute('aria-pressed',String(key==='simplify'?state.simplified:state.appearance===(key==='simple'?'simple':key==='easy'?'easy-read':'low-vision')));};
   function render(resultsData){
    results.replaceChildren();for(const item of resultsData){const row=make('li',undefined,'apc-result');const copy=make('div');copy.append(make('span',item.type,'apc-kind'),make('strong',item.text,'apc-title'),make('span',item.context+(item.score?' · Matches '+terms(input.value||state.task).filter(word=>itemTextIncludes(item.text,word)||itemTextIncludes(item.description||'',word)).join(', '):''),'apc-context'));const button=make('button','Show');button.setAttribute('aria-label','Show '+item.text+(resultsData.filter(other=>other.text===item.text).length>1?' in '+item.context:''));button.addEventListener('click',event=>{if(event.isTrusted)show(item.element,status);});row.append(copy,button);results.append(row);}
    status.textContent=resultsData.length?`${resultsData.length} distinct ${resultsData.length===1?'destination':'destinations'}. Choose one to locate it.`:'No matching controls or headings. Try a shorter topic or ask your companion.';
@@ -157,13 +158,22 @@
   required.addEventListener('click',()=>showFields('input[required],select[required],textarea[required],[aria-required="true"]','No required fields are marked on this page.'));
   errors.addEventListener('click',()=>showFields('[aria-invalid="true"]','No fields are currently marked invalid by this page.'));
   current.addEventListener('click',()=>{try{if(!globalThis.__apPageActions?.showCurrent)throw new Error();globalThis.__apPageActions.showCurrent();}catch{status.textContent='Ask your companion for a current step first.';}});
-  simplify.addEventListener('click',()=>{state.simplified=!state.simplified;refreshPresentation();setModes();status.textContent=state.simplified?'Reading area emphasized. Navigation, images and original instructions remain visible.':'Reading focus off.';});
-  for(const[button,mode]of [[easy,'easy-read'],[low,'low-vision']])button.addEventListener('click',()=>{state.appearance=state.appearance===mode?null:mode;refreshPresentation();setModes();status.textContent=state.appearance?'Reading preference applied.':'Original reading style restored.';});
+  simple.addEventListener('click',()=>activate('simple'));
+  simplify.addEventListener('click',()=>{state.appearance=null;state.simplified=!state.simplified;refreshPresentation();setModes();status.textContent=state.simplified?'Reading area emphasized. Navigation, images and original instructions remain visible.':'Reading focus off.';});
+  for(const[button,mode]of [[easy,'easy-read'],[low,'low-vision']])button.addEventListener('click',()=>{state.simplified=false;state.appearance=state.appearance===mode?null:mode;refreshPresentation();setModes();status.textContent=state.appearance?'Reading preference applied.':'Original reading style restored.';});
   images.addEventListener('click',()=>{const count=describeImages();status.textContent=`${count} existing image descriptions shown. Image pixels were not analyzed.`;});
   restore.addEventListener('click',()=>{clearHighlights();state.appearance=null;state.simplified=false;refreshPresentation();setModes();document.querySelectorAll('.apc-image-note').forEach(note=>note.remove());status.textContent='Original page restored.';});
   globalThis.__apSetTask=task=>{state.task=String(task||'');taskNote.textContent=state.task?'For your task · '+state.task.slice(0,90):'Local tools · no AI request';};
+  function activate(kind){
+   const mode={simple:'simple',larger:'easy-read',contrast:'low-vision'}[kind];
+   const wasActive=kind==='quiet'?state.simplified:state.appearance===mode;
+   state.appearance=wasActive?null:mode||null;state.simplified=!wasActive&&kind==='quiet';refreshPresentation();setModes();
+  }
   globalThis.__apPageTools={
-   features(task){const paragraphs=[...document.querySelectorAll('p,li,label,legend')].filter(visible).slice(0,120);return{smallText:paragraphs.some(el=>parseFloat(getComputedStyle(el).fontSize)<18),dense:paragraphs.some(el=>safeText(el,600).length>350)||paragraphs.length>18,hasMain:!!document.querySelector('main,[role="main"],article'),hasTask:!!terms(task).length,hasMatches:!!terms(task).length&&search(task,false).length>0,landmarks:this.destinations('',true).length>0};},
+   activate,
+   active(){return state.simplified?'quiet':({'easy-read':'larger','low-vision':'contrast',simple:'simple'}[state.appearance]||null);},
+   restoreAppearance(){state.appearance=null;state.simplified=false;refreshPresentation();setModes();},
+   features(task){const paragraphs=[...document.querySelectorAll('p,li,label,legend')].filter(visible).slice(0,120);return{clutter:globalThis.__apSimpleProfile?.count()>0,active:this.active(),smallText:paragraphs.some(el=>parseFloat(getComputedStyle(el).fontSize)<18),dense:paragraphs.some(el=>safeText(el,600).length>350)||paragraphs.length>18,hasMain:!!document.querySelector('main,[role="main"],article'),hasTask:!!terms(task).length,hasMatches:!!terms(task).length&&search(task,false).length>0,landmarks:this.destinations('',true).length>0};},
    destinations(task,landmarks=false){return(landmarks?searchables().filter(item=>item.type==='Heading'):search(task,false)).slice(0,3);},
    locate(item,keyboard=false){if(!item?.element?.isConnected)return;show(item.element,status);if(keyboard){const el=item.element,old=el.getAttribute('tabindex');if(old===null)el.setAttribute('tabindex','-1');el.focus({preventScroll:true});if(old===null)el.addEventListener('blur',()=>{if(el.getAttribute('tabindex')==='-1')el.removeAttribute('tabindex');},{once:true});}},
    preview(kind){const previous={appearance:state.appearance,simplified:state.simplified};if(kind==='larger')state.appearance='easy-read';if(kind==='quiet')state.simplified=true;refreshPresentation();setModes();return()=>{state.appearance=previous.appearance;state.simplified=previous.simplified;refreshPresentation();setModes();};},
