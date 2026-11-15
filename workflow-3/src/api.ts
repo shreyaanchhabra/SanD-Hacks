@@ -1,3 +1,4 @@
+import {transcriptionSchema} from './transcription.js';
 import { timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
 import { createService } from './service.js';
@@ -29,6 +30,7 @@ export function createApi({ token, service = createService(), allowedExtensionOr
       const raw = await request.text();
       if (Buffer.byteLength(raw) > 1600000) return json({ error: 'Request too large' }, 413);
       const body = JSON.parse(raw);
+      if (path === '/api/voice/transcribe') return json(await service.transcribe(transcriptionSchema.parse(body)));
       if (path === '/api/tasks') { const { task, snapshot, screenshot } = startSchema.parse(body); return json(await service.start(task, snapshot, screenshot), 201); }
       if (path === '/api/analytics/events') {
         const value = z.object({ consent: z.literal(true), eventId: z.string().min(1).max(120), type: z.string(), journeyCategory: z.enum(['application','account-setup','benefits','healthcare','education','other']), stepCategory: z.enum(['navigation','identity','contact','eligibility','documents','review','submission','unknown']), provider: z.enum(['gemini','mastra','bright-data','elevenlabs','extension']).optional() }).strict().parse(body);
@@ -46,6 +48,7 @@ export function createApi({ token, service = createService(), allowedExtensionOr
     } catch (error) {
       if (error instanceof z.ZodError || error instanceof SyntaxError) return json({ error: 'Invalid request; send only the documented value-free fields' }, 400);
       const message = error instanceof Error ? error.message : '';
+      if(path==='/api/voice/transcribe')return json({error:message.startsWith('Voice transcription')?message:'Voice transcription unavailable. Type your question instead.'},503);
       if (message === 'Task not found' || message === 'Task expired') return json({ error: message }, 404);
       const safeMessages = ['Task paused', 'Task busy', 'Event is stale; remap the current page', 'Navigation requires a new page snapshot', 'Snapshot is stale', 'A clarification answer is required', 'Answer the clarification first', 'Speech step is stale or paused'];
       return safeMessages.includes(message) ? json({ error: message }, 409) : json({ error: 'Guidance temporarily unavailable; the original page remains usable' }, 503);

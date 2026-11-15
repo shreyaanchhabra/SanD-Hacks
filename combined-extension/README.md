@@ -2,6 +2,27 @@
 
 One extension connects the page tools, Exode mascot, Gemini planning, Mastra task continuity, and optional ElevenLabs speech. The original component folders remain available as references; load this folder for the linked experience.
 
+## Minimal companion with Text and Voice (0.6)
+
+The same page-aware task powers both modes. Text is the default. Selecting Voice does not start the microphone or create another task. Page context, Mastra continuity, source retrieval, screenshot consent, and request budgets remain intact.
+
+- Select the mascot or use Command/Ctrl+Shift+K to open its bubble. The three-dot button opens page tools and settings; Details holds explanations, progress, speech controls, and Voice setup.
+- Drag the mascot to choose its resting position, or focus it and use Alt+arrow keys. Show me temporarily travels beside the validated target. Reset companion position restores the left default. Reduced motion disables automatic travel and pointer animation.
+- Sources includes retrieved instructions even when the answer is a clarification, with labels distinguishing cited material from other retrieved material.
+- Voice requires the updated backend plus `ELEVENLABS_API_KEY`; spoken answers also need `ELEVENLABS_VOICE_ID`. Keys stay on the backend. Both transcription and speech may incur provider charges.
+- Open Details → Voice setup and explicitly enable the microphone once. Return to the website, select Voice → Talk → Stop recording. Stop sends audio to the backend/ElevenLabs. Edit the transcript before selecting Start guiding, Send answer, or Send question. Transcription does not itself send a task to Gemini.
+- Recording is limited to 30 seconds / 1 MB, with five transcription requests per minute per backend process. No raw recording is stored by AccessPatch; provider retention policies apply. Avoid speaking private answers or identity numbers.
+- New valid responses in Voice mode are read aloud; Replay repeats without another Gemini planning request. Stop audio, switching modes, closing the bubble, pausing, or changing the page cancels playback. Voice mode always retains readable text.
+- Navigation, tab changes, hiding the page, or cancellation invalidate recording/transcription. A pending microphone acquisition is invalidated too. A fresh Talk action is needed afterward.
+
+### Isolated integration branch
+
+Branch: `codex/mascot-text-voice`. Base checkpoint: `f7bc0b4` includes the original folder's uncommitted Bright Data work. Load **this worktree's combined-extension folder**, not the standalone exode folder. Because the stable extension ID is shared, keep only one version loaded in Chrome; the original source folder remains available for rollback.
+
+The original running backend has not been restarted. To exercise the new voice endpoint, start the backend from this worktree with your local ignored `.env` after stopping the old server on port 4313. Do not run two backends against one SQLite state directory. This worktree does not automatically copy credentials, task databases, or recordings. Existing saved tasks belong to their original backend storage; test this isolated version with a new task. The standalone mascot folder remains unchanged.
+
+Verification: 71 backend tests, TypeScript checking, and 38 Chromium tests passed. Browser tests use mocked Chrome messaging and speech providers; real Chrome microphone permission/offscreen capture and live ElevenLabs delivery still need a manual smoke test with configured credentials. No live provider request was made for this integration.
+
 ## Start
 
 1. Start the backend from `workflow-3`: `npm run dev`. Use the existing `.env` with `PLANNER_MODE=gemini`, `GEMINI_API_KEY`, `GEMINI_MODEL`, and `LOCAL_API_TOKEN`.

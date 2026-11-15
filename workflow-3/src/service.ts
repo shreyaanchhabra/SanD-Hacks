@@ -1,3 +1,4 @@
+import type {Transcribe, Recording} from './transcription.js';
 import { randomUUID } from 'node:crypto';
 import { createStep, createWorkflow } from '@mastra/core/workflows';
 import { z } from 'zod';
@@ -12,7 +13,7 @@ import { mockPlanner, planStep } from './planner.js';
 import type { TigerDataStore, GuidanceEventType } from './tiger-data.js';
 import { decideRetrieval, type RetrievalOutcome } from './brightdata.js';
 
-export function createService(options: { planner?: Planner; sources?: SourceAdapter; speech?: SpeechAdapter; plannerMode?: string; repository?: TaskRepository; storage?: MastraCompositeStore; tiger?: TigerDataStore; engine?: GuidanceEngine } = {}) {
+export function createService(options: { transcribe?: Transcribe; planner?: Planner; sources?: SourceAdapter; speech?: SpeechAdapter; plannerMode?: string; repository?: TaskRepository; storage?: MastraCompositeStore; tiger?: TigerDataStore; engine?: GuidanceEngine } = {}) {
   const sourceAdapter = options.sources ?? { mode: 'synthetic-fixture', retrieveContext: async () => sources };
   const speech = options.speech ?? { mode: 'mock-no-audio', speak: async () => ({ status: 'mock-no-audio' }) };
   const inputSchema = z.object({ task: z.string(), snapshot: snapshotSchema, history: z.array(z.string()), imageKey: z.string().optional(), pageChange:pageChangeSchema.optional(), priorSources: z.array(sourceSchema).max(10).default([]) });
@@ -80,12 +81,13 @@ export function createService(options: { planner?: Planner; sources?: SourceAdap
     finally { if (imageKey) images.delete(imageKey); }
     if (output.status !== 'suspended') throw new Error('Workflow unavailable');
     const { result, sources: citedSources, sourceContext: nextSourceContext, retrieval, usage } = turnSchema.parse(output.steps['wait-for-user'].suspendPayload);
-    const state: TaskState = { runId, stepId: randomUUID(), pageId: snapshot.pageId, revision: snapshot.revision, status: result.kind === 'clarification' ? 'clarifying' : result.kind === 'unsupported' ? 'unsupported' : 'waiting-for-user', result, sources: citedSources, workflowStatus: output.status, task, journey: result.journey ?? [], ...(result.stage ? {stage: result.stage} : {}), analysis: { input: screenshot ? 'image+text' : 'text', imageStatus: !screenshot ? 'not-requested' : result.visualObservation ? 'analyzed' : result.kind === 'unsupported' ? 'failed' : 'unverified', observation: result.visualObservation ?? null, provider: options.plannerMode ?? 'mock', retrieval: retrieval.status, ...(retrieval.message ? { retrievalMessage: retrieval.message } : {}), ...(usage?{cache:usage.cache,cacheStore:usage.store,providerCalls:usage.providerCalls,retryAfterSeconds:usage.retryAfterSeconds}:{}) } };
+    const state: TaskState = { runId, stepId: randomUUID(), pageId: snapshot.pageId, revision: snapshot.revision, status: result.kind === 'clarification' ? 'clarifying' : result.kind === 'unsupported' ? 'unsupported' : 'waiting-for-user', result, sources: citedSources, retrievedSources: nextSourceContext, workflowStatus: output.status, task, journey: result.journey ?? [], ...(result.stage ? {stage: result.stage} : {}), analysis: { input: screenshot ? 'image+text' : 'text', imageStatus: !screenshot ? 'not-requested' : result.visualObservation ? 'analyzed' : result.kind === 'unsupported' ? 'failed' : 'unverified', observation: result.visualObservation ?? null, provider: options.plannerMode ?? 'mock', retrieval: retrieval.status, ...(retrieval.message ? { retrievalMessage: retrieval.message } : {}), ...(usage?{cache:usage.cache,cacheStore:usage.store,providerCalls:usage.providerCalls,retryAfterSeconds:usage.retryAfterSeconds}:{}) } };
     return { run, state, sourceContext: nextSourceContext, workflowRunId: run.runId };
   }
   return {
+    async transcribe(input:Recording){if(!options.transcribe)throw new Error('Voice transcription is not connected. Type your question or configure ElevenLabs.');return options.transcribe(input);},
     persistence: options.repository ? `local SQLite Mastra checkpoints and task files; ${options.tiger ? 'opt-in Tiger Data resume cards and consented events' : 'no Tiger Data journey store'}; guidance cache: ${options.engine?.cacheMode ?? 'off'}; active unsaved tasks expire after one idle hour` : 'memory',
-    get modes(){return { Gemini: options.plannerMode ?? 'mock', Mastra: 'real-local-suspend-resume', 'Bright Data': sourceAdapter.mode, 'Tiger Data': options.tiger ? 'connected; explicit saves and consented events only' : options.engine?.cacheMode === 'tiger-data' ? 'cache connected; journey store needs owner ID' : options.engine?.cacheMode === 'local-fallback' ? 'cache local fallback' : 'not-connected', ElevenLabs: speech.mode };},
+    get modes(){return { Gemini: options.plannerMode ?? 'mock', Mastra: 'real-local-suspend-resume', 'Bright Data': sourceAdapter.mode, 'Tiger Data': options.tiger ? 'connected; explicit saves and consented events only' : options.engine?.cacheMode === 'tiger-data' ? 'cache connected; journey store needs owner ID' : options.engine?.cacheMode === 'local-fallback' ? 'cache local fallback' : 'not-connected', ElevenLabs: speech.mode, Transcription: options.transcribe?'elevenlabs-live':'not-connected' };},
     async start(task: string, snapshot: PageSnapshot, screenshot?: Screenshot) {
       const { screenshot: image, ...clean } = startSchema.parse({ task, snapshot, screenshot });
       for (const [id, r] of records) if (!r.saved && Date.now() - r.touched > 3600000) records.delete(id);

@@ -1,3 +1,4 @@
+importScripts('voice-background.js');
 const BASE = 'http://127.0.0.1:4313';
 const pending = new Map();
 const generationKey=tabId=>`guide-generation-${tabId}`;
@@ -12,7 +13,7 @@ async function inject(tabId, automatic=false){
  }
  await chrome.scripting.executeScript({target:{tabId},func:value=>{globalThis.__apAutomaticInjection=value;},args:[automatic]});
  await chrome.scripting.insertCSS({target:{tabId},files:['tools.css']});
- await chrome.scripting.executeScript({target:{tabId},files:['fingerprint.js','page-map.js','tools.js','guide.js']});
+ await chrome.scripting.executeScript({target:{tabId},files:['fingerprint.js','page-map.js','tools.js','voice-controller.js','guide.js']});
  if(automatic)await chrome.tabs.sendMessage(tabId,{type:'navigation-ready'}).catch(()=>{});
 }
 chrome.action.onClicked.addListener(tab=>inject(tab.id).catch(()=>chrome.runtime.openOptionsPage()));
@@ -22,7 +23,7 @@ chrome.tabs.onUpdated.addListener((tabId,change)=>{
  }
 });
 chrome.runtime.onMessage.addListener((message,sender,reply)=>{
- if(sender.id!==chrome.runtime.id)return;
+ if(sender.id!==chrome.runtime.id||message.target==='accesspatch-recorder'||message.type?.startsWith('voice-'))return;
  (async()=>{
   if(message.type==='open-settings'){await chrome.runtime.openOptionsPage();return{};}
   if(!sender.tab?.id)throw new Error('Open the guide on a website.');

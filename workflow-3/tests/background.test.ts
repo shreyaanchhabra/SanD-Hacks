@@ -8,7 +8,7 @@ function harness(fetcher?){
  const event=name=>({addListener:fn=>{callbacks[name]=fn;}});
  const store=data=>({get:async key=>Object.fromEntries((Array.isArray(key)?key:[key]).map(k=>[k,data[k]])),set:async value=>Object.assign(data,value),remove:async key=>{delete data[key];}});
  const chrome={runtime:{id:'test-extension',onMessage:event('message'),openOptionsPage:async()=>{}},action:{onClicked:event('action')},tabs:{get:async id=>({id,url:'https://second.example/form'}),query:async()=>[],onUpdated:event('updated'),onCreated:event('created'),onRemoved:event('removed'),sendMessage:async()=>{}},storage:{session:store(session),local:store(local)},permissions:{contains:async()=>permitted},scripting:{insertCSS:async x=>injections.push(x),executeScript:async x=>injections.push(x)}};
- vm.runInNewContext(code,{chrome,URL,AbortSignal,setTimeout:fn=>{timers.push(fn);return timers.length;},clearTimeout:()=>{},fetch:fetcher??(async()=>new Response(JSON.stringify({runId:'abc-123',stepId:'step-2',task:'Original goal',status:'waiting-for-user'}),{status:201}))});
+ vm.runInNewContext(code,{importScripts:()=>{},chrome,URL,AbortSignal,setTimeout:fn=>{timers.push(fn);return timers.length;},clearTimeout:()=>{},fetch:fetcher??(async()=>new Response(JSON.stringify({runId:'abc-123',stepId:'step-2',task:'Original goal',status:'waiting-for-user'}),{status:201}))});
  const flush=async()=>{while(timers.length){await timers.shift()();await new Promise(resolve=>setImmediate(resolve));}};
  const rpc=message=>new Promise(resolve=>callbacks.message(message,{id:'test-extension',tab:{id:1,windowId:1}},resolve));
  return{callbacks,session,local,injections,flush,rpc,setPermission:value=>{permitted=value;}};

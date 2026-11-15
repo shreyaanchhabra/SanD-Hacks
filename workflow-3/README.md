@@ -102,3 +102,9 @@ The mascot shows **Preparation checklist** and **Sources & instructions** with p
 `npm run sources:check` checks the search/extraction path without Gemini: one Bright Data Bing search and up to three direct public-page reads. Defaults are 20 network operations/day and 4/minute per backend process (this counts both discovery and page reads). Responses are streamed with a 1 MB cap; redirects are checked individually and only HTML is accepted. Public-source cache reuse lasts 24 hours and is separate from task state. Search snippets are discovery material, not document requirements. Retrieval time is not the publisher's update date.
 
 Live checks: account zones verified, Bing search and direct public-page extraction succeeded. Google SERP returned a captcha/redirect error, so Bing is used. No changes were made to the Gemini API key.
+
+## Optional voice input
+
+`POST /api/voice/transcribe` accepts authenticated JSON `{ consent: true, mimeType: "audio/webm", data: "<base64 WebM audio>" }` and returns `{ text }`. It validates the audio header and size (1 MB), limits transcription to five attempts/minute per process, and uses a 30-second provider timeout. Set `ELEVENLABS_API_KEY` to enable it; `ELEVENLABS_VOICE_ID` remains the separate text-to-speech setting. The transcript is a user-reviewable draft and does not create or advance a Mastra task. Neither the audio nor the transcription response is written to task/Tiger storage by this endpoint. Submitted transcript text subsequently follows the normal task-history rules. Provider storage/retention is governed by the ElevenLabs account, not this application's local discard behavior.
+
+Health exposes `modes.Transcription` as `elevenlabs-live` or `not-connected`. Existing task responses may include `retrievedSources`, distinct from `sources` (only cited evidence), so clients can display search results even on clarification turns.

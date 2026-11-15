@@ -43,7 +43,7 @@ export const taskStateSchema = z.object({
  runId: id, stepId: id, pageId: id, revision: z.number().int().positive(),
  savedForLater: z.boolean().optional(),
  status: z.enum(['clarifying','waiting-for-user','unsupported','paused']), result: resultSchema,
- sources: z.array(sourceSchema), workflowStatus: z.string(), task: text,
+ sources: z.array(sourceSchema), retrievedSources: z.array(sourceSchema).max(10).optional(), workflowStatus: z.string(), task: text,
  journey: z.array(z.string().max(160)).max(6), stage: z.string().max(160).optional(),
  analysis: z.object({ input: z.enum(['text','image+text']), imageStatus: z.enum(['not-requested','analyzed','unverified','failed']), observation: z.string().nullable(), provider: z.string(), cache:z.enum(['hit','miss','coalesced','bypass']).optional(), cacheStore:z.string().optional(), providerCalls:z.number().int().nonnegative().optional(), retryAfterSeconds:z.number().optional(), retrieval: z.enum(['not-needed','live','cached','no-results','not-configured','provider-failure','budget-limited']).optional(), retrievalMessage: z.string().max(200).optional() }),
 });

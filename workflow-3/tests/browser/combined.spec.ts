@@ -8,7 +8,9 @@ async function setup(page, planner?, revealClosed = true, speech?, follow = fals
  await page.exposeFunction('extensionRpc',async message=>{
   calls.push(message);
   let result;
-  if(message.type==='follow-status')result={enabled:follow};
+  if(message.type==='voice-start'||message.type==='voice-cancel')result={};
+  else if(message.type==='voice-stop')result={text:'What documents do I need?'};
+  else if(message.type==='follow-status')result={enabled:follow};
   else if(message.type==='api'){
    if(failAutoOnce&&message.automatic&&message.path.endsWith('/events')&&automaticFailures++===0)return{ok:false,error:'Temporary network failure'};
    const response=await api(new Request('http://127.0.0.1:4313'+message.path,{method:message.body?'POST':'GET',headers:{Authorization:'Bearer test','Content-Type':'application/json'},...(message.body?{body:JSON.stringify(message.body)}:{})}));
@@ -25,12 +27,12 @@ async function setup(page, planner?, revealClosed = true, speech?, follow = fals
  },revealClosed);
  await page.goto('http://127.0.0.1:4320');
  const injectGuide=async()=>{await page.addStyleTag({path:path.resolve('../combined-extension/tools.css')});
- for(const file of ['fingerprint.js','page-map.js','tools.js','guide.js'])await page.addScriptTag({path:path.resolve('../combined-extension',file)});
+ for(const file of ['fingerprint.js','page-map.js','tools.js','voice-controller.js','guide.js'])await page.addScriptTag({path:path.resolve('../combined-extension',file)});
  };await injectGuide();
  if(revealClosed)await expect(page.locator('#accesspatch-guide').getByText('Demo mode:',{exact:false})).toBeVisible();
  return {calls,storage,injectGuide};
 }
-async function expandMore(page){const more=page.locator('#accesspatch-guide .more');if(!await more.evaluate(el=>el.open))await more.locator('summary').click();}
+async function expandMore(page){const more=page.locator('#accesspatch-guide .more');if(!await more.evaluate(el=>el.open))await more.locator(':scope > summary').click();}
 test('one panel connects the mascot bubble, page mapper, Mastra and reversible highlight',async({page})=>{
  const {calls}=await setup(page);const guide=page.locator('#accesspatch-guide');
  await guide.getByLabel('Your task').fill('Help with my energy bill');
@@ -189,7 +191,7 @@ test('mascot continuation reviews before sharing and stuck questions reach plann
  await expect.poll(()=>seen.length).toBe(2);
  await expandMore(page);await guide.getByRole('button',{name:'I’m stuck',exact:true}).click();
  await guide.getByLabel('Your answer',{exact:true}).fill('What does assistance mean here?');
- await guide.getByRole('button',{name:'Continue',exact:true}).click();
+ await guide.getByRole('button',{name:'Send question',exact:true}).click();
  await expect.poll(()=>seen.length).toBe(3);
  expect(seen[2].history.join(' ')).toContain('What does assistance mean here?');
 });
@@ -298,7 +300,7 @@ test('form shortcuts locate required and invalid fields locally without model ca
 test('observed evidence and expected progress are distinct from the suggested instruction',async({page})=>{
  await setup(page,async input=>({kind:'guidance',instruction:'Read Household.',explanation:'This field groups household information.',targetId:input.snapshot.elements[0].id,sourceIds:[],expectedOutcome:'user-confirmation',observations:[{text:'The page contains a Household field.',basis:'page',elementId:null}],changeSummary:null,completionEvidence:{type:'user-confirmation',description:'The person confirms reading the label.',elementId:null}}));
  const guide=page.locator('#accesspatch-guide');await guide.getByLabel('Your task').fill('Explain this form');await guide.getByRole('button',{name:'Start guiding',exact:true}).click();
- await expect(guide.locator('.bubble')).toContainText('Read Household.');await guide.getByText('Why this step?',{exact:true}).click();
+ await expect(guide.locator('.bubble')).toContainText('Read Household.');await expandMore(page);await guide.getByText('Why this step?',{exact:true}).click();
  await expect(guide.getByLabel('Observed page facts')).toContainText('contains a Household field');await expect(guide.locator('.reasoning')).toContainText('What to look for:');
 });
 test('same-name fields remain distinct across form groups in local search',async({page})=>{
@@ -312,7 +314,7 @@ test('mascot renders a cited preparation checklist with source evidence',async({
  await setup(page,async input=>({kind:'guidance',instruction:'Read the Household label.',explanation:'Preparation help from the supplied demo source.',targetId:input.snapshot.elements[0].id,sourceIds:[input.sources[0].id],checklist:[{text:'Read the listed preparation requirements.',sourceId:input.sources[0].id}],expectedOutcome:'user-confirmation'}));
  const guide=page.locator('#accesspatch-guide');await guide.getByLabel('Your task').fill('What documents are required for energy assistance?');await guide.getByRole('button',{name:'Start guiding',exact:true}).click();
  await guide.getByText('Preparation checklist',{exact:true}).click();await expect(guide.getByLabel('Preparation checklist')).toContainText('Read the listed preparation requirements.');
- await guide.getByText('Sources & instructions',{exact:true}).click();await expect(guide.getByLabel('Sources & instructions')).toContainText('Retrieved');await expect(guide.getByLabel('Sources & instructions').locator('a')).toHaveAttribute('href',/https:/);
+ await guide.getByLabel('Sources & instructions').locator(':scope > summary').click();await expect(guide.getByLabel('Sources & instructions')).toContainText('Retrieved');await expect(guide.getByLabel('Sources & instructions').locator('a')).toHaveAttribute('href',/https:/);
 });
 
 test('external retrieval failure is visible beside the mascot while page guidance remains usable',async({page})=>{
@@ -321,3 +323,32 @@ test('external retrieval failure is visible beside the mascot while page guidanc
  const guide=page.locator('#accesspatch-guide');await guide.getByLabel('Your task').fill('What documents are required?');await guide.getByRole('button',{name:'Start guiding',exact:true}).click();
  await expect(guide.getByLabel('Public instructions status')).toContainText('restricts access');await expect(guide.locator('.bubble')).toContainText('Read Household.');await expect(guide.getByRole('button',{name:'Show me',exact:true})).toBeEnabled();await expect(guide.getByLabel('Preparation checklist')).toBeHidden();await expect(guide).not.toContainText('private provider details');
 });
+
+ test('Text and Voice switch presentation without losing the task or requesting another plan',async({page})=>{
+ const {calls,storage}=await setup(page);const guide=page.locator('#accesspatch-guide');
+ await guide.getByLabel('Your task').fill('Help with my energy bill');await guide.getByRole('button',{name:'Start guiding',exact:true}).click();
+ await expect(guide.locator('.bubble')).toContainText('Select');const run=storage.state.runId;const count=calls.filter(c=>c.type==='api'&&c.body).length;
+ await guide.getByRole('button',{name:'Voice',exact:true}).click();await expect(guide.getByRole('button',{name:'Talk',exact:true})).toBeVisible();
+ await guide.getByRole('button',{name:'Text',exact:true}).click();expect(storage.state.runId).toBe(run);expect(calls.filter(c=>c.type==='api'&&c.body).length).toBe(count);
+ await expect(guide.locator('.bubble')).toContainText('Select');
+ });
+ test('retrieved instructions remain visible when Gemini asks a clarification',async({page})=>{
+ const source={id:'public-one',url:'https://www.usa.gov/benefits',text:'Public preparation instructions for benefit applications.',retrievedAt:new Date().toISOString(),synthetic:false};
+ await setup(page,async()=>({kind:'clarification',question:'Which state are you in?'}),true,undefined,false,false,{mode:'configured',retrieveContext:async()=>[source]});
+ const guide=page.locator('#accesspatch-guide');await guide.getByLabel('Your task').fill('What documents are required?');await guide.getByRole('button',{name:'Start guiding',exact:true}).click();
+ await expect(guide.locator('.bubble')).toContainText('Which state');await guide.getByText('Sources (1)',{exact:true}).click();await expect(guide.getByText(source.text,{exact:true})).toBeVisible();
+ });
+
+ test('voice transcript is reviewed and enters the same task help workflow',async({page})=>{
+ const {calls,storage}=await setup(page);const guide=page.locator('#accesspatch-guide');
+ await guide.getByLabel('Your task').fill('energy bill');await guide.getByRole('button',{name:'Start guiding',exact:true}).click();await expect(guide.locator('.bubble')).toContainText('Select');const run=storage.state.runId;
+ await guide.getByRole('button',{name:'Voice',exact:true}).click();await guide.getByRole('button',{name:'Talk',exact:true}).click();await expect(guide.getByRole('button',{name:'Stop recording',exact:true})).toBeVisible();
+ await guide.getByRole('button',{name:'Stop recording',exact:true}).click();await expect(guide.getByLabel('Your answer',{exact:true})).toHaveValue('What documents do I need?');expect(calls.filter(c=>c.path?.endsWith('/events'))).toHaveLength(0);
+ await guide.getByRole('button',{name:'Send question',exact:true}).click();await expect.poll(()=>calls.filter(c=>c.path?.endsWith('/events')).length).toBe(1);
+ const sent=calls.find(c=>c.path?.endsWith('/events'));expect(sent.path).toContain(run);expect(sent.body.type).toBe('help-requested');expect(sent.body.answer).toBe('What documents do I need?');
+ });
+ test('mascot supports keyboard positioning and reset without model requests',async({page})=>{
+ const {calls}=await setup(page);const guide=page.locator('#accesspatch-guide'),mascot=guide.getByRole('button',{name:'Talk to your companion',exact:true});const before=await guide.locator('.companion').boundingBox();
+ await mascot.focus();await page.keyboard.press('Alt+ArrowRight');await expect.poll(async()=>(await guide.locator('.companion').boundingBox()).x).toBeGreaterThan(before.x+10);
+ await guide.getByRole('button',{name:'Tools & settings',exact:true}).click();await guide.getByRole('button',{name:'Reset companion position',exact:true}).click();await expect.poll(async()=>(await guide.locator('.companion').boundingBox()).x).toBeLessThan(30);expect(calls.filter(c=>c.type==='api'&&c.body)).toHaveLength(0);
+ });
