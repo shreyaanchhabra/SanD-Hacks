@@ -421,3 +421,12 @@ test('reading review redacts selected and short answers and rejects changed para
  await page.locator('main p').evaluate(el=>el.textContent='Changed instructions. '.repeat(20));await guide.getByRole('button',{name:'Explain reviewed text',exact:true}).click();await expect(guide.locator('.comfort-suggestion')).toContainText('The page changed');expect(calls.filter(c=>c.type==='api'&&c.body)).toHaveLength(0);
  if(process.env.CAPTURE_EVIDENCE)await page.screenshot({path:'/tmp/accesspatch-comfort.png'});
 });
+
+test('Comfort stays in its own corner and collapses independently of conversation',async({page})=>{
+ await setup(page);const guide=page.locator('#accesspatch-guide');const dock=guide.getByRole('complementary',{name:'Page comfort'});const conversation=guide.getByLabel('Conversation with your guide',{exact:true});
+ await expect(dock).toBeVisible();expect(await conversation.locator('.comfort-sheet,.comfort-suggestion').count()).toBe(0);
+ const before=await dock.boundingBox();await guide.getByRole('button',{name:'Talk to your companion',exact:true}).click();await expect(conversation).toBeHidden();await expect(dock).toBeVisible();expect((await dock.boundingBox()).x).toBe(before.x);
+ await dock.getByRole('button',{name:'Comfort',exact:true}).click();await expect(dock.getByLabel('Offer larger text',{exact:true})).toBeVisible();await dock.getByRole('button',{name:'Done',exact:true}).click();await dock.getByRole('button',{name:'Collapse page comfort'}).click();await expect(dock.getByRole('button',{name:'Comfort',exact:true})).toBeHidden();await dock.getByRole('button',{name:'Expand page comfort'}).click();await expect(dock.getByRole('button',{name:'Comfort',exact:true})).toBeVisible();
+ await page.setViewportSize({width:390,height:844});const box=await dock.boundingBox();expect(box.x).toBeGreaterThanOrEqual(0);expect(box.x+box.width).toBeLessThanOrEqual(390);expect(box.height).toBeLessThanOrEqual(844*.45);
+ if(process.env.CAPTURE_EVIDENCE)await page.screenshot({path:'/tmp/accesspatch-comfort-mobile.png'});
+});

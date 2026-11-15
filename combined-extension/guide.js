@@ -25,6 +25,13 @@
  const menuBar=make('div',null,shadow,{className:'menu-bar'});
  const tools=make('button','Tools & settings',menuBar);tools.setAttribute('aria-expanded','false');
  const menuNotice=make('p','',menuBar,{className:'menu-notice',hidden:true});menuNotice.setAttribute('role','status');
+
+ style.textContent+=`
+ .comfort-dock{position:fixed;top:20px;right:20px;width:288px;max-width:calc(100vw - 24px);max-height:calc(100dvh - 40px);overflow:auto;pointer-events:auto;background:#fffdf8;color:#263238;border:1px solid #b9bdb5;border-top:3px solid #41403e;border-radius:14px 14px 10px 10px;box-shadow:0 8px 24px #26323818;font:14px/1.5 system-ui,sans-serif;z-index:2}
+ .comfort-dock-header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 16px}.comfort-dock-header strong{display:block;font-size:16px;font-weight:650}.comfort-dock-header span{display:block;font-size:12px;color:#606760}.comfort-dock-header button{border:0;font-size:22px;min-width:44px;padding:4px}.comfort-dock-body{padding:0 16px 16px}.comfort-settings-button{width:100%;text-align:left;background:#f0f2eb;font-size:13px}.comfort-settings-button::after{content:'Preferences';float:right;font-size:12px;color:#606760;font-weight:400}
+ .comfort-dock .comfort-sheet,.comfort-dock .comfort-suggestion{margin:14px 0 0;padding:14px 0 0;border-top:1px solid #dedfd6}.comfort-dock .comfort-title{margin:0;font-size:16px}.comfort-dock .comfort-sheet>.subtle{margin:6px 0 14px}.comfort-dock .comfort-choice{min-height:42px}.comfort-dock .actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}.comfort-dock .comfort-suggestion .actions button:first-child{background:#2454bd;border-color:#2454bd;color:white}.comfort-dock .comfort-suggestion p{font-size:14px;line-height:1.55}.comfort-dock .comfort-suggestion .subtle{font-size:12px;margin-top:10px}.comfort-dock details{margin-top:12px}.comfort-dock summary{cursor:pointer;color:#606760;min-height:36px;padding:8px 0}.comfort-dock details>button{display:block;margin-top:6px;width:100%;text-align:left}.comfort-dock textarea{width:100%;margin-top:6px}.comfort-dock .comfort-idle{font-size:13px;color:#606760;margin:14px 0 0}.comfort-dock.is-collapsed{width:220px}.comfort-dock.is-collapsed .comfort-dock-header span{display:none}
+ @media(max-width:600px){.comfort-dock{top:12px;right:12px;max-height:45dvh;width:280px}.comfort-dock.is-collapsed{width:188px}.comfort-dock-header{padding:8px 12px}}
+ `;
  const menu=make('section',null,menuBar,{className:'menu',hidden:true});menu.setAttribute('aria-label','Page tools and settings');make('h2','Page compass',menu);
  const toolContent=make('div',null,menu,{className:'tool-content'});const mountedTools=globalThis.__apMountTools(toolContent);
  for(const button of mountedTools.querySelectorAll('button'))if(button.textContent==='Restore page')button.addEventListener('click',()=>{map({type:'restore'});comfort?.restore();returnHome();stopAudio();},{capture:true});
@@ -355,11 +362,12 @@
  mascotButton.addEventListener('keydown',event=>{if(!event.altKey||!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key))return;event.preventDefault();targetRef=undefined;const box=companion.getBoundingClientRect();homePosition={x:(box.left+(event.key==='ArrowLeft'?-20:event.key==='ArrowRight'?20:0))/innerWidth,y:(box.top+(event.key==='ArrowUp'?-20:event.key==='ArrowDown'?20:0))/innerHeight};applyHome();storeHome().catch(()=>{});});
  on(homeReset,async()=>{homePosition=undefined;await chrome.storage.local.set({companionHome:null});returnHome();});window.addEventListener('resize',applyHome);
  comfort=globalThis.__apMountComfort({header,panel,tools:globalThis.__apPageTools,getTask:()=>state?.task||task.value,hasStep:()=>!!state&&current()&&!busy,canExplain:()=>!busy&&state?.status!=='clarifying',getExplanation:()=>{const result=globalThis.__apMapper({type:'reading-context'});if(!result.ok)throw new Error(result.error);return result;},onExplain:async text=>{
+  returnHome();panel.hidden=false;mascotButton.setAttribute('aria-expanded','true');
   if(busy)throw new Error('Wait for your current answer first.');
   if(state?.status==='clarifying')throw new Error('Answer the current question first.');
   const request='Explain this reviewed page text in plain language, one short step at a time. Preserve requirements and distinguish explanation from original wording.\n'+text;if(state){helpMode=true;answer.value=request;}else task.value=request;
   reviewed=snap();await requestGuidance();
- },onSpeak:async()=>{await voice.setMode('voice');render();await readCurrent();}});
+ },onSpeak:async()=>{returnHome();panel.hidden=false;mascotButton.setAttribute('aria-expanded','true');await voice.setMode('voice');render();await readCurrent();}});
  (async()=>{
   const saved=await rpc({type:'load'});state=saved.state;visualStamp=saved.visualStamp;motion.checked=!!saved.keepStill;syncMotion();task.value=saved.task||state?.task||'';
   await voice.restore();const position=await chrome.storage.local.get('companionHome');if(Number.isFinite(position.companionHome?.x)&&Number.isFinite(position.companionHome?.y)){homePosition=position.companionHome;applyHome();}

@@ -114,10 +114,12 @@ A friendly greeting appears on the first visit only, remembered locally. Opening
 
 ### Comfort preferences
 
-Open **Comfort** beside Text/Voice to choose what helps: larger text, shorter explanations, spoken guidance, keyboard navigation, or reading focus. My setup and Another person are separate browser-local profiles; Guest preferences are not saved. No disability or identity is inferred and these preferences are not sent to Tiger Data or Gemini.
+Open **Comfort** in the separate top-right **Page comfort** panel to choose what helps: larger text, shorter explanations, spoken guidance, keyboard navigation, or reading focus. My setup and Another person are separate browser-local profiles; Guest preferences are not saved. No disability or identity is inferred and these preferences are not sent to Tiger Data or Gemini.
 
 The companion offers one relevant suggestion at a time. Dismiss silences suggestions for that page; Suggestion preferences lets you remember an offer or stop suggesting it. Larger text and reading focus have Preview, Keep for this page, and Undo. Reading focus preserves navigation, images, errors, and original instructions. Page tools label existing image descriptions honestly; they do not claim to analyze image pixels.
 
 Short explanations show an editable, redacted text review before sending to Gemini through the current task. Changed reading text invalidates that review. Spoken guidance uses the existing configured voice. Preference matching, page navigation, and visual adjustments run locally without model requests. Mastra coordinates the task and model/tool calls; Gemini supplies language reasoning when requested.
 
 Reload the unpacked extension and refresh open website tabs after updating. Page adjustments depend on each site's markup; preview and undo remain available for layouts where the change is unhelpful.
+
+Page comfort stays anchored independently of the mascot and its conversation. Collapse it with the minus button; on narrow screens it starts collapsed. Preferences, suggestions, text review, and undo stay in this panel. Requested explanations and speech return to the mascot’s shared conversation.
