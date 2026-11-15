@@ -1,6 +1,6 @@
 const DEFAULT_SETTINGS = {
   voiceEnabled: true,
-  voiceId: "wqWIzbRnTn2yKnO6eeJS",
+  voiceId: "YgLWbyKFBPk4ocoUTu0e",
   elevenLabsApiKey: ""
 };
 const enabled = document.getElementById("voice-enabled");
