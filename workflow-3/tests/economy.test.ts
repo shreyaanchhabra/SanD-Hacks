@@ -25,11 +25,11 @@ test('concurrent identical requests share one validated provider call',async()=>
  let count=0;const engine=new GuidanceEngine({model:'model',scope:'one',planner:async()=>{count++;return result('household-label');}});
  const [a,b]=await Promise.all([engine.plan(input()),engine.plan(input())]);assert.equal(count,1);assert.deepEqual(a.result,b.result);
 });
-test('quota responses trigger cooldown without immediately retrying provider',async()=>{
+test('provider errors do not block subsequent user requests locally',async()=>{
  let count=0,now=1000;const engine=new GuidanceEngine({model:'model',scope:'one',now:()=>now,planner:async()=>{count++;throw Object.assign(new Error('private provider error'),{status:429,error:{details:[{'@type':'type.googleapis.com/google.rpc.RetryInfo',retryDelay:'120s'}]}});}});
  const first=await engine.plan(input());assert.equal(first.result.kind,'unsupported');assert.equal(count,1);
- const next=await engine.plan(input());assert.equal(count,1);assert.equal(next.usage.status,'cooldown');
- now+=121000;await engine.plan(input());assert.equal(count,2);
+ const next=await engine.plan(input());assert.equal(count,2);assert.equal(next.usage.status,'provider-error');
+ now+=121000;await engine.plan(input());assert.equal(count,3);
 });
 test('invalid target output is never persisted as reusable guidance',async()=>{
  let writes=0;const engine=new GuidanceEngine({model:'model',scope:'one',cache:{mode:'test',get:async()=>null,put:async()=>{writes++;}},planner:async()=>result('unknown')});
@@ -59,3 +59,5 @@ test('cached source-backed guidance preserves the validated preparation checklis
  const request={...input(),sources:[source]};const first=await engine.plan(request);const second=await engine.plan(request);
  assert.equal(second.usage.cache,'hit');assert.deepEqual(second.result.checklist,first.result.checklist);
 });
+
+test('repeated uncached guidance has no daily or minute request cap',async()=>{let calls=0;const engine=new GuidanceEngine({model:'model',scope:'unlimited',planner:async()=>{calls++;return result('household-label');}});for(let i=0;i<25;i++)await engine.plan({...input(),history:['turn '+i]});assert.equal(calls,25);});

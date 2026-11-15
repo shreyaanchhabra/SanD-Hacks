@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { BrightDataSourceAdapter, MemoryPublicSourceCache, RetrievalBudget, createBrightDataSourceAdapter, decideRetrieval, type BrightDataProvider } from '../src/brightdata.js';
+import { BrightDataSourceAdapter, MemoryPublicSourceCache, createBrightDataSourceAdapter, decideRetrieval, type BrightDataProvider } from '../src/brightdata.js';
 import { createService } from '../src/service.js';
 import { formPage, startPage } from '../src/fixtures.js';
 
@@ -15,7 +15,7 @@ function provider(overrides: Partial<BrightDataProvider> = {}) {
   } satisfies BrightDataProvider;
 }
 function adapter(overrides: Partial<ConstructorParameters<typeof BrightDataSourceAdapter>[0]> = {}) {
-  return new BrightDataSourceAdapter({ provider: provider(), cache: new MemoryPublicSourceCache(), budget: new RetrievalBudget({ daily: 20, perMinute: 20 }), ...overrides });
+  return new BrightDataSourceAdapter({ provider: provider(), cache: new MemoryPublicSourceCache(), ...overrides });
 }
 
 test('retrieval decisions keep visible navigation page-only and retrieve document questions', () => {
@@ -50,10 +50,10 @@ test('public-source cache and single-flight deduplicate concurrent retrieval', a
   assert.equal(cached.outcomeFor(task, startPage)?.status, 'cached');
 });
 
-test('call budgets stop excessive Bright Data requests', async () => {
-  const limited = adapter({ budget: new RetrievalBudget({ daily: 1, perMinute: 1 }) });
-  await assert.rejects(limited.retrieveContext('What documents are required?', startPage), /call budget/);
-  assert.equal(limited.outcomeFor('What documents are required?', startPage)?.status, 'budget-limited');
+test('repeated uncached Bright Data lookups have no local request cap',async()=>{
+ let calls=0;const live=adapter({provider:provider({discover:async()=>{calls++;return['https://www.usa.gov/instructions'];}}),cache:{get:async()=>null,put:async()=>{}}});
+ for(let i=0;i<25;i++)assert.ok((await live.retrieveContext('What documents are required?',startPage)).length);
+ assert.equal(calls,25);
 });
 
 test('provider failures preserve page-only guidance and expose a safe retrieval state', async () => {
@@ -69,12 +69,12 @@ test('provider failures preserve page-only guidance and expose a safe retrieval 
   assert.ok(!JSON.stringify(state).includes('provider secret'));
 });
 
-test('rate-limited discovery enters cooldown instead of immediately retrying Bright Data', async () => {
+test('rate-limited discovery allows subsequent user lookup without local cooldown', async () => {
   let calls = 0;
   const limited = adapter({ provider: provider({ discover: async () => { calls += 1; throw Object.assign(new Error('rate limit'), { status: 429 }); } }) });
   await assert.rejects(limited.retrieveContext('What documents are required?', startPage));
-  await assert.rejects(limited.retrieveContext('What documents are required?', startPage), /cooling down/);
-  assert.equal(calls, 1);
+  await assert.rejects(limited.retrieveContext('What documents are required?', startPage));
+  assert.equal(calls, 2);
 });
 
 test('Bright Data is not presented as configured without every required environment value', async () => {
@@ -119,8 +119,8 @@ test('documented synchronous SERP request works without a customer ID and only f
  const result=await live.retrieveContext('required documents',startPage);
  assert.ok(result.length);assert.equal(calls[0].url,'https://api.brightdata.com/request');assert.equal(calls[0].body.zone,'search');assert.match(calls[0].body.url,/bing.com\/search/);assert.equal(new URL(calls[0].body.url).searchParams.get('brd_json'),'1');assert.equal(calls.some(c=>c.body.url==='https://www.other.gov/ads'),false);
 });
-test('a three-page lookup completes under the default four-call minute budget',async()=>{
- const live=adapter({provider:provider({discover:async()=>['https://www.usa.gov/one','https://www.usa.gov/two','https://www.usa.gov/three']}),budget:new RetrievalBudget({daily:20,perMinute:4})});
+test('a lookup still reads the three most relevant pages',async()=>{
+ const live=adapter({provider:provider({discover:async()=>['https://www.usa.gov/one','https://www.usa.gov/two','https://www.usa.gov/three']})});
  assert.ok((await live.retrieveContext('required documents',startPage)).length>0);
 });
 test('a failed later source does not discard earlier useful official passages',async()=>{

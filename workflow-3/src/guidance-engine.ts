@@ -13,7 +13,7 @@ export class FileGuidanceCache implements GuidanceCache{
  async get(key:string){try{return cacheEntrySchema.parse(JSON.parse(readFileSync(join(this.directory,key+'.json'),'utf8')));}catch{return null;}}
  async put(key:string,entry:CacheEntry){const file=join(this.directory,key+'.json');writeFileSync(file+'.tmp',JSON.stringify(cacheEntrySchema.parse(entry)),{mode:0o600});renameSync(file+'.tmp',file);}
 }
-export type GuidanceUsage={cache:'hit'|'miss'|'coalesced'|'bypass';status:'ready'|'cooldown'|'budget'|'provider-error';store:string;providerCalls:number;retryAfterSeconds?:number};
+export type GuidanceUsage={cache:'hit'|'miss'|'coalesced'|'bypass';status:'ready'|'provider-error';store:string;providerCalls:number;retryAfterSeconds?:number};
 export type EngineResult={result:PlannerResult;usage:GuidanceUsage};
 function hash(value:unknown){return createHash('sha256').update(JSON.stringify(value)).digest('hex');}
 function canonical(input:PlannerInput){
@@ -46,21 +46,13 @@ function freshEvidence(input:PlannerInput,result:PlannerResult):PlannerResult{
  const target=input.snapshot.elements.find(e=>e.id===result.targetId);
  return{...result,observations:target?[{basis:'page',elementId:target.id,text:`This page contains “${target.name}”${target.required?' and marks it required':''}.`}]:[],changeSummary:null};
 }
-function retryDelay(error:unknown){
- const e=error as {message?:string;error?:{details?:unknown[]}};let details=e.error?.details;
- if(!details&&e.message)try{const parsed=JSON.parse(e.message);details=parsed.error?.details||parsed.details;}catch{}
- for(const entry of details||[]){const info=entry as {retryDelay?:string};if(info.retryDelay){const seconds=Number.parseFloat(info.retryDelay);if(Number.isFinite(seconds))return Math.min(86400,Math.max(1,seconds));}}
- return 60;
-}
 export class GuidanceEngine{
  private cache?:GuidanceCache;private memory=new Map<string,CacheEntry>();private inFlight=new Map<string,{promise:Promise<EngineResult>;ids:Map<string,string>} >();
- private day='';private used=0;private minute:number[]=[];private cooldown=0;private now:()=>number;
- constructor(private options:{planner:Planner;model:string;scope:string;cache?:GuidanceCache;now?:()=>number;dailyBudget?:number;minuteBudget?:number;ttlMs?:number;budgetFile?:string}){
+ private now:()=>number;
+ constructor(private options:{planner:Planner;model:string;scope:string;cache?:GuidanceCache;now?:()=>number;ttlMs?:number}){
   this.cache=options.cache;this.now=options.now??Date.now;
-  if(options.budgetFile)try{const saved=JSON.parse(readFileSync(options.budgetFile,'utf8'));this.day=String(saved.day||'');this.used=Number(saved.used)||0;this.cooldown=Number(saved.cooldown)||0;this.minute=Array.isArray(saved.minute)?saved.minute.filter((x:unknown)=>typeof x==='number'):[];}catch{}
  }
  get cacheMode(){return this.cache?.mode??'memory';}
- private saveBudget(){if(this.options.budgetFile){const file=this.options.budgetFile;writeFileSync(file+'.tmp',JSON.stringify({day:this.day,used:this.used,minute:this.minute,cooldown:this.cooldown}),{mode:0o600});renameSync(file+'.tmp',file);}}
  async plan(input:PlannerInput):Promise<EngineResult>{
   const normalized=canonical(input);const key=hash({owner:this.options.scope,model:this.options.model,...normalized.payload});const now=this.now();const bypass=!!input.screenshot||input.snapshot.elements.some(e=>e.validation?.invalid)||input.history.length>0;
   let entry=this.memory.get(key);
@@ -75,20 +67,10 @@ export class GuidanceEngine{
   try{return await work;}finally{if(!bypass)this.inFlight.delete(key);}
  }
  private async execute(input:PlannerInput,key:string,normalized:ReturnType<typeof canonical>,bypass:boolean):Promise<EngineResult>{
-  let calls=0,blocked:'cooldown'|'budget'|undefined,retry=0;
-  const guarded:Planner=async context=>{
-   const now=this.now();const day=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Los_Angeles',year:'numeric',month:'2-digit',day:'2-digit'}).format(now);
-   if(day!==this.day){this.day=day;this.used=0;}
-   this.minute=this.minute.filter(timestamp=>now-timestamp<60000);
-   if(this.cooldown>now){blocked='cooldown';retry=Math.ceil((this.cooldown-now)/1000);throw Object.assign(new Error('cooldown'),{status:429});}
-   if(this.used>=(this.options.dailyBudget??20)){blocked='budget';retry=3600;throw Object.assign(new Error('local budget'),{status:429});}
-   if(this.minute.length>=(this.options.minuteBudget??5)){blocked='cooldown';retry=Math.max(1,Math.ceil((60000-(now-this.minute[0]))/1000));throw Object.assign(new Error('local pace'),{status:429});}
-   this.used++;this.minute.push(now);calls++;this.saveBudget();
-   try{return await this.options.planner(context);}catch(error){const status=Number((error as {status?:unknown})?.status);if(status===429||status>=500){this.cooldown=now+1000*(status===429?retryDelay(error):30);retry=Math.ceil((this.cooldown-now)/1000);blocked='cooldown';this.saveBudget();}throw error;}
-  };
-  let result=await planStep(input,guarded);
-  if(blocked&&result.kind==='unsupported')result={kind:'unsupported',reason:blocked==='budget'?'Guidance is paused at the configured daily request budget. Your local page tools remain available.':`Guidance is cooling down. Retry in ${retry} seconds; your local page tools remain available.`};
-  const usage:GuidanceUsage={cache:bypass?'bypass':'miss',status:blocked??(result.kind==='unsupported'?'provider-error':'ready'),store:this.cacheMode,providerCalls:calls,...(retry?{retryAfterSeconds:retry}:{})};
+  let calls=0;
+  const guarded:Planner=async context=>{calls++;return this.options.planner(context);};
+  const result=await planStep(input,guarded);
+  const usage:GuidanceUsage={cache:bypass?'bypass':'miss',status:result.kind==='unsupported'?'provider-error':'ready',store:this.cacheMode,providerCalls:calls};
   if(!bypass&&result.kind==='guidance'){
    const entry:CacheEntry=reusableEntry({version:CACHE_VERSION,createdAt:this.now(),expiresAt:this.now()+(this.options.ttlMs??900000),result:remapResult(result,normalized.actualToStable),...(normalized.form?{form:normalized.form}:{})});
    this.memory.set(key,entry);if(this.memory.size>500)this.memory.delete(this.memory.keys().next().value!);

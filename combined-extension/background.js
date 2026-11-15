@@ -49,7 +49,7 @@ chrome.runtime.onMessage.addListener((message,sender,reply)=>{
    if(after?.id!==tabId)throw new Error('The active tab changed. Capture again.');return{data};
   }
   if(message.type!=='api')throw new Error('Unknown request');
-  const path=String(message.path||'');if(!/^\/api\/(health|analytics\/events|saved-journeys(?:\/[a-f0-9-]+)?|tasks(?:\/[a-f0-9-]+(?:\/(events|pause|resume|speech|save))?)?)$/.test(path))throw new Error('Unsupported route');
+  const path=String(message.path||'');if(!/^\/api\/(voice\/preview|health|analytics\/events|saved-journeys(?:\/[a-f0-9-]+)?|tasks(?:\/[a-f0-9-]+(?:\/(events|pause|resume|speech|save))?)?)$/.test(path))throw new Error('Unsupported route');
   if(message.automatic){const prior=await binding(),settings=await chrome.storage.local.get('autoFollowApproved');const url=new URL(sender.tab.url||'about:blank');if(!prior.autoFollow||!settings.autoFollowApproved||!/^https?:$/.test(url.protocol)||!await chrome.permissions.contains({origins:[url.origin+'/*']}))throw new Error('Automatic guidance is disabled or site permission is missing.');}
   const {localToken}=await chrome.storage.session.get('localToken');if(!localToken)throw new Error('Add the local API token in extension settings.');
   const gKey=generationKey(tabId);let generation=(await chrome.storage.session.get(gKey))[gKey]||0;

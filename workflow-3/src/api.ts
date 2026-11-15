@@ -30,6 +30,7 @@ export function createApi({ token, service = createService(), allowedExtensionOr
       const raw = await request.text();
       if (Buffer.byteLength(raw) > 1600000) return json({ error: 'Request too large' }, 413);
       const body = JSON.parse(raw);
+      if (path === '/api/voice/preview') { z.object({}).strict().parse(body); return json(await service.previewVoice()); }
       if (path === '/api/voice/transcribe') return json(await service.transcribe(transcriptionSchema.parse(body)));
       if (path === '/api/tasks') { const { task, snapshot, screenshot } = startSchema.parse(body); return json(await service.start(task, snapshot, screenshot), 201); }
       if (path === '/api/analytics/events') {

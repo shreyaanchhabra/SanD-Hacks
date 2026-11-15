@@ -5,12 +5,8 @@ export const transcriptionSchema=z.object({consent:z.literal(true),mimeType:z.li
 export type Recording=z.infer<typeof transcriptionSchema>;
 export type Transcribe=(input:Recording)=>Promise<{text:string}>;
 export function elevenLabsTranscription(apiKey:string,request:typeof fetch=fetch):Transcribe{
- let recent:number[]=[];
  return async raw=>{
   const input=transcriptionSchema.parse(raw);
-  recent=recent.filter(time=>Date.now()-time<60000);
-  if(recent.length>=5)throw new Error('Voice transcription unavailable. Wait a minute or type your question.');
-  recent.push(Date.now());
   try{
    const form=new FormData();form.set('model_id','scribe_v2');form.set('tag_audio_events','false');form.set('timestamps_granularity','none');form.set('file',new Blob([Buffer.from(input.data,'base64')],{type:input.mimeType}),'question.webm');
    const response=await request('https://api.elevenlabs.io/v1/speech-to-text',{method:'POST',headers:{'xi-api-key':apiKey},body:form,signal:AbortSignal.timeout(30000)});

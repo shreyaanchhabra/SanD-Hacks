@@ -14,3 +14,7 @@ test('speech provider failures do not reveal provider response or key',async()=>
  const speech=elevenLabsSpeech('secret-key','voice',async()=>new Response('secret provider detail',{status:401}));
  await assert.rejects(speech.speak('step','Read the label.'),/Speech temporarily unavailable/);
 });
+
+test('voice preview uses fixed sample text without creating a task',async()=>{
+ let seen;const service=createService({speech:{mode:'test',speak:async(id,text)=>{seen={id,text};return{status:'mock-no-audio'};}}});await service.previewVoice();assert.equal(seen.id,'voice-preview');assert.match(seen.text,/page companion/);
+});

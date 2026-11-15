@@ -23,8 +23,9 @@ async function setup(page, planner?, revealClosed = true, speech?, follow = fals
  });
  await page.addInitScript(reveal=>{
   if(reveal){const attach=Element.prototype.attachShadow;Element.prototype.attachShadow=function(options){return attach.call(this,{...options,mode:'open'});};}
-  globalThis.chrome={storage:{local:{get:async()=>({}),set:async()=>{}}},runtime:{getURL:p=>location.origin+'/'+p,onMessage:{addListener(){}},sendMessage:message=>globalThis.extensionRpc(message)}};
+  const preferences={};globalThis.chrome={storage:{local:{get:async keys=>Object.fromEntries((Array.isArray(keys)?keys:[keys]).map(key=>[key,preferences[key]])),set:async values=>Object.assign(preferences,values)}},runtime:{getURL:p=>location.origin+'/'+p,onMessage:{addListener(){}},sendMessage:message=>globalThis.extensionRpc(message)}};
  },revealClosed);
+ await page.route('**/exode-mascot.js',route=>route.fulfill({path:path.resolve('../combined-extension/exode-mascot.js'),contentType:'text/javascript'}));
  await page.goto('http://127.0.0.1:4320');
  const injectGuide=async()=>{await page.addStyleTag({path:path.resolve('../combined-extension/tools.css')});
  for(const file of ['fingerprint.js','page-map.js','tools.js','voice-controller.js','guide.js'])await page.addScriptTag({path:path.resolve('../combined-extension',file)});
@@ -352,3 +353,23 @@ test('external retrieval failure is visible beside the mascot while page guidanc
  await mascot.focus();await page.keyboard.press('Alt+ArrowRight');await expect.poll(async()=>(await guide.locator('.companion').boundingBox()).x).toBeGreaterThan(before.x+10);
  await guide.getByRole('button',{name:'Tools & settings',exact:true}).click();await guide.getByRole('button',{name:'Reset companion position',exact:true}).click();await expect.poll(async()=>(await guide.locator('.companion').boundingBox()).x).toBeLessThan(30);expect(calls.filter(c=>c.type==='api'&&c.body)).toHaveLength(0);
  });
+
+test('voice preferences include preview, persistent speed and direct microphone setup',async({page})=>{
+ const {calls}=await setup(page);const guide=page.locator('#accesspatch-guide');await guide.getByRole('button',{name:'Voice',exact:true}).click();
+ await expect(guide.getByRole('button',{name:'Set up microphone',exact:true})).toBeVisible();
+ await guide.getByText('Voice settings',{exact:true}).click();await guide.getByRole('button',{name:'Preview voice',exact:true}).click();await expect.poll(()=>calls.some(c=>c.path==='/api/voice/preview')).toBe(true);
+ await guide.getByLabel('Speaking speed',{exact:true}).selectOption('0.8');await guide.getByRole('button',{name:'Text',exact:true}).click();await guide.getByRole('button',{name:'Voice',exact:true}).click();await expect(guide.getByLabel('Speaking speed',{exact:true})).toHaveValue('0.8');
+ expect(calls.filter(c=>c.path==='/api/tasks')).toHaveLength(0);
+});
+test('welcome is shown once and recording state is expressed without hiding written guidance',async({page})=>{
+ await setup(page);const guide=page.locator('#accesspatch-guide');await expect(guide.locator('.bubble')).toContainText('Hi, I’m your page companion');
+ await guide.getByRole('button',{name:'Talk to your companion',exact:true}).click();await guide.getByRole('button',{name:'Talk to your companion',exact:true}).click();await expect(guide.locator('.bubble')).not.toContainText('Hi,');
+ await guide.getByRole('button',{name:'Voice',exact:true}).click();await guide.getByRole('button',{name:'Talk',exact:true}).click();await expect(guide.locator('.mascot')).toHaveAttribute('data-state','listening');
+ await guide.getByRole('button',{name:'Text',exact:true}).click();await expect(guide.locator('.mascot')).not.toHaveAttribute('data-state','listening');
+});
+test('drag plays dizzy once and reduced motion suppresses expression requests',async({page})=>{
+ await setup(page);const guide=page.locator('#accesspatch-guide');await guide.locator('exode-mascot').evaluate(el=>{globalThis.mascotPlays=[];el.addEventListener('exode-extension-play',e=>globalThis.mascotPlays.push(e.detail));});
+ const mascot=guide.getByRole('button',{name:'Talk to your companion',exact:true});let box=await mascot.boundingBox();await page.mouse.move(box.x+30,box.y+30);await page.mouse.down();await page.mouse.move(box.x+75,box.y+30,{steps:5});await page.mouse.move(box.x+95,box.y+30,{steps:5});await page.mouse.up();
+ expect(await page.evaluate(()=>globalThis.mascotPlays.filter(p=>p==='dizzy').length)).toBe(1);
+ await page.emulateMedia({reducedMotion:'reduce'});await page.evaluate(()=>globalThis.mascotPlays=[]);box=await mascot.boundingBox();await page.mouse.move(box.x+30,box.y+30);await page.mouse.down();await page.mouse.move(box.x+65,box.y+30,{steps:5});await page.mouse.up();expect(await page.evaluate(()=>globalThis.mascotPlays)).toEqual([]);
+});

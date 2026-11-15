@@ -4,14 +4,14 @@ One extension connects the page tools, Exode mascot, Gemini planning, Mastra tas
 
 ## Minimal companion with Text and Voice (0.6)
 
-The same page-aware task powers both modes. Text is the default. Selecting Voice does not start the microphone or create another task. Page context, Mastra continuity, source retrieval, screenshot consent, and request budgets remain intact.
+The same page-aware task powers both modes. Text is the default. Selecting Voice does not start the microphone or create another task. Page context, Mastra continuity, source retrieval, screenshot consent, remain intact.
 
 - Select the mascot or use Command/Ctrl+Shift+K to open its bubble. The three-dot button opens page tools and settings; Details holds explanations, progress, speech controls, and Voice setup.
 - Drag the mascot to choose its resting position, or focus it and use Alt+arrow keys. Show me temporarily travels beside the validated target. Reset companion position restores the left default. Reduced motion disables automatic travel and pointer animation.
 - Sources includes retrieved instructions even when the answer is a clarification, with labels distinguishing cited material from other retrieved material.
 - Voice requires the updated backend plus `ELEVENLABS_API_KEY`; spoken answers also need `ELEVENLABS_VOICE_ID`. Keys stay on the backend. Both transcription and speech may incur provider charges.
 - Open Details → Voice setup and explicitly enable the microphone once. Return to the website, select Voice → Talk → Stop recording. Stop sends audio to the backend/ElevenLabs. Edit the transcript before selecting Start guiding, Send answer, or Send question. Transcription does not itself send a task to Gemini.
-- Recording is limited to 30 seconds / 1 MB, with five transcription requests per minute per backend process. No raw recording is stored by AccessPatch; provider retention policies apply. Avoid speaking private answers or identity numbers.
+- Recording is limited to 30 seconds / 1 MB. No raw recording is stored by AccessPatch; provider retention policies apply. Avoid speaking private answers or identity numbers.
 - New valid responses in Voice mode are read aloud; Replay repeats without another Gemini planning request. Stop audio, switching modes, closing the bubble, pausing, or changing the page cancels playback. Voice mode always retains readable text.
 - Navigation, tab changes, hiding the page, or cancellation invalidate recording/transcription. A pending microphone acquisition is invalidated too. A fresh Talk action is needed afterward.
 
@@ -94,7 +94,7 @@ A real Gemini image-only request produced visible findings; a later fictional fo
 
 **Tools & settings** now opens a compact Page compass. Search returns concise destinations with their type and section, collapses duplicate links, and keeps same-name fields distinct by form group. **Show** moves the mascot to the item without activating it. **Find required fields**, **Find visible errors**, and **Current step** work locally without Gemini calls. Reading preferences sit in one collapsed group.
 
-Beside the mascot, **Why this step?** separates observed page facts, what changed, and what to look for next. Saved guidance has a visible cache indicator; cooldown messages explain when another model call can be attempted. Form context includes groups, required status, types, and constraints without sending filled values. Screenshots still require crop review and explicit sharing.
+Beside the mascot, **Why this step?** separates observed page facts, what changed, and what to look for next. Saved guidance has a visible cache indicator; provider failures are reported without imposing a local cooldown. Form context includes groups, required status, types, and constraints without sending filled values. Screenshots still require crop review and explicit sharing.
 
 Tiger Data is optional: set `TIGER_DATABASE_URL` in the backend `.env` and run `npm run cache:check` from `workflow-3`. Only reusable static form structure and guidance enter that cache. Answers, raw screenshots, and task progress do not. Until a database is configured, the backend uses local cache storage. Local task checkpoints remain separate.
 
@@ -103,3 +103,11 @@ Tiger Data is optional: set `TIGER_DATABASE_URL` in the backend `.env` and run `
 The existing Mastra/Gemini flow searches for supporting public instructions on demand using Bright Data Bing SERP, then the backend reads up to three approved public results through normal HTTPS. Government and recognized nonprofit publishers are labeled separately. The mascot shows retrieval status, a collapsible preparation checklist, source excerpts and retrieval times. If lookup fails, live-page guidance continues with an explicit message. Reload the extension and refresh the website to see these controls.
 
 Search and extraction succeeded against public government pages in a live check. Source requirements can be jurisdiction-specific; the guide should ask which state applies before using a state-specific checklist. Bright Data's restricted government proxy is not used for page fetching. API credentials remain in the backend only.
+
+Local daily/minute request budgets and application cooldowns have been removed for Gemini, Bright Data, and transcription. Provider errors are still reported; caching and duplicate in-flight request coalescing remain. Recording duration, payload validation, network timeouts, and bounded source selection are unchanged. Old budget files are ignored.
+
+### Companion personality and voice preferences
+
+The mascot now has distinct listening (attentive pose), thinking (think expression), speaking (gentle motion), and ready (smile) states. State changes follow real recording/request/playback events. Dragging plays one brief dizzy reaction, not a repeating loop. Reduced motion and Keep mascot still disable expression requests and speaking motion.
+
+A friendly greeting appears on the first visit only, remembered locally. Opening an existing task keeps its current instruction. Voice mode has a direct Set up microphone button; Voice settings contains Preview voice and Speaking speed (Slower 0.8×, Normal 1×, Faster 1.2×). Speed is stored locally and applies to previews and normal replies without regenerating audio. Preview uses fixed sample text and never creates a Gemini/Mastra task; it does make an ElevenLabs speech request when configured. Stop audio, switching modes, closing the bubble, and page changes cancel or invalidate pending playback.

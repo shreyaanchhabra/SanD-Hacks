@@ -49,27 +49,7 @@ export class MemoryPublicSourceCache implements PublicSourceCache {
 }
 
 class RetrievalError extends Error {
-  constructor(readonly status: 'provider-failure' | 'budget-limited', message: string) { super(message); }
-}
-
-export class RetrievalBudget {
-  private minute: number[] = [];
-  private day = '';
-  private dailyUsed = 0;
-  private cooldownUntil = 0;
-  constructor(private options: { daily: number; perMinute: number; now?: () => number }) {}
-  private get now() { return this.options.now ?? Date.now; }
-  take() {
-    const now = this.now();
-    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
-    if (today !== this.day) { this.day = today; this.dailyUsed = 0; }
-    this.minute = this.minute.filter(value => now - value < 60_000);
-    if (this.cooldownUntil > now) throw new RetrievalError('budget-limited', 'External instructions unavailable. Bright Data is cooling down after a rate limit.');
-    if (this.dailyUsed >= this.options.daily || this.minute.length >= this.options.perMinute) throw new RetrievalError('budget-limited', 'External instructions unavailable. The Bright Data call budget is currently reached.');
-    this.dailyUsed += 1;
-    this.minute.push(now);
-  }
-  rateLimited() { this.cooldownUntil = this.now() + 60_000; }
+  constructor(readonly status: 'provider-failure', message: string) { super(message); }
 }
 
 export class BrightDataSourceAdapter implements SourceAdapter {
@@ -77,7 +57,7 @@ export class BrightDataSourceAdapter implements SourceAdapter {
   private inFlight = new Map<string, Promise<SourceExcerpt[]>>();
   private outcomes = new Map<string, RetrievalOutcome>();
   private now: () => number;
-  constructor(private options: { provider: BrightDataProvider; cache: PublicSourceCache; budget: RetrievalBudget; now?: () => number }) { this.now = options.now ?? Date.now; }
+  constructor(private options: { provider: BrightDataProvider; cache: PublicSourceCache; now?: () => number }) { this.now = options.now ?? Date.now; }
   outcomeFor(task: string, snapshot: PageSnapshot): RetrievalOutcome | undefined { return this.outcomes.get(contextKey(task, snapshot)); }
   async retrieveContext(task: string, snapshot: PageSnapshot): Promise<SourceExcerpt[]> {
     const key = contextKey(task, snapshot);
@@ -94,15 +74,13 @@ export class BrightDataSourceAdapter implements SourceAdapter {
   }
   private async lookup(task: string, snapshot: PageSnapshot, key: string) {
     try {
-      this.options.budget.take();
       const discovered = await this.options.provider.discover(buildSearchQuery(task, snapshot));
       const candidates = uniqueUrls([...discovered, snapshot.url]).filter(isApprovedPublicUrl).slice(0, MAX_FETCHED_PAGES);
       const sources: SourceExcerpt[] = [];
       for (const candidate of candidates) {
         let page;
-        try { this.options.budget.take(); page = await this.options.provider.fetchPage(candidate); }
+        try { page = await this.options.provider.fetchPage(candidate); }
         catch(error) {
-          if(statusCode(error)===429)this.options.budget.rateLimited();
           if(error instanceof RetrievalError || statusCode(error)===429){if(!sources.length)throw error;break;}
           if(candidate===candidates.at(-1)&&!sources.length)throw error;
           continue;
@@ -119,7 +97,6 @@ export class BrightDataSourceAdapter implements SourceAdapter {
       return deduped;
     } catch (error) {
       if (error instanceof RetrievalError) { this.outcomes.set(key, { status: error.status, message: error.message }); throw error; }
-      if (statusCode(error) === 429) this.options.budget.rateLimited();
       const message = 'External instructions unavailable.';
       this.outcomes.set(key, { status: 'provider-failure', message });
       throw new RetrievalError('provider-failure', message);
@@ -152,7 +129,6 @@ export function createBrightDataSourceAdapter(environment: NodeJS.ProcessEnv, ca
   return new BrightDataSourceAdapter({
     provider: new BrightDataHttpProvider({ apiKey, serpZone, timeoutMs, fetchImpl }),
     cache: new FilePublicSourceCache(cacheDirectory),
-    budget: new RetrievalBudget({ daily: positive(environment.BRIGHTDATA_DAILY_BUDGET, 20), perMinute: positive(environment.BRIGHTDATA_MINUTE_BUDGET, 4) }),
   });
 }
 

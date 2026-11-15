@@ -152,6 +152,7 @@ export function createService(options: { transcribe?: Transcribe; planner?: Plan
     },
     async pause(runId: string) { const r = get(runId); r.state.status = 'paused';persist(r); return structuredClone(r.state); },
     async unpause(runId: string) { const r = get(runId); if (r.busy) throw new Error('Task busy'); r.state.status = r.state.result.kind === 'clarification' ? 'clarifying' : r.state.result.kind === 'unsupported' ? 'unsupported' : 'waiting-for-user';persist(r); return structuredClone(r.state); },
+    async previewVoice(){return speech.speak('voice-preview','Hi, I’m your page companion. We can take this one step at a time.');},
     async speak(runId: string, stepId: string) { const r = get(runId); if (r.state.stepId !== stepId || r.state.status === 'paused') throw new Error('Speech step is stale or paused'); const result = r.state.result; const text = result.kind === 'guidance' ? result.instruction : result.kind === 'clarification' ? result.question : result.reason; return speech.speak(stepId, text); },
   };
 }
