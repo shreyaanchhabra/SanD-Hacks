@@ -28,7 +28,7 @@ async function setup(page, planner?, revealClosed = true, speech?, follow = fals
  await page.route('**/exode-mascot.js',route=>route.fulfill({path:path.resolve('../combined-extension/exode-mascot.js'),contentType:'text/javascript'}));
  await page.goto('http://127.0.0.1:4320');
  const injectGuide=async()=>{await page.addStyleTag({path:path.resolve('../combined-extension/tools.css')});
- for(const file of ['fingerprint.js','page-map.js','tools.js','voice-controller.js','guide.js'])await page.addScriptTag({path:path.resolve('../combined-extension',file)});
+ for(const file of ['fingerprint.js','page-map.js','tools.js','comfort.js','voice-controller.js','guide.js'])await page.addScriptTag({path:path.resolve('../combined-extension',file)});
  };await injectGuide();
  if(revealClosed)await expect(page.locator('#accesspatch-guide').getByText('Demo mode:',{exact:false})).toBeVisible();
  return {calls,storage,injectGuide};
@@ -152,7 +152,7 @@ test('one tools menu and a separate left mascot travel beside a target without c
  await expect(guide.getByRole('button',{name:'Page tools',exact:true})).toHaveCount(0);
  await guide.getByRole('button',{name:'Tools & settings',exact:true}).click();
  await guide.getByText('Reading preferences',{exact:true}).click();
- await expect(guide.getByRole('button',{name:'Easy Read',exact:true})).toBeVisible();
+ await expect(guide.getByRole('button',{name:'Larger text',exact:true})).toBeVisible();
  await guide.getByRole('button',{name:'Tools & settings',exact:true}).click();
  const home=await guide.locator('.companion').boundingBox();expect(home.x).toBeLessThan(50);
  await guide.getByLabel('Your task').fill('energy bill');
@@ -372,4 +372,52 @@ test('drag plays dizzy once and reduced motion suppresses expression requests',a
  const mascot=guide.getByRole('button',{name:'Talk to your companion',exact:true});let box=await mascot.boundingBox();await page.mouse.move(box.x+30,box.y+30);await page.mouse.down();await page.mouse.move(box.x+75,box.y+30,{steps:5});await page.mouse.move(box.x+95,box.y+30,{steps:5});await page.mouse.up();
  expect(await page.evaluate(()=>globalThis.mascotPlays.filter(p=>p==='dizzy').length)).toBe(1);
  await page.emulateMedia({reducedMotion:'reduce'});await page.evaluate(()=>globalThis.mascotPlays=[]);box=await mascot.boundingBox();await page.mouse.move(box.x+30,box.y+30);await page.mouse.down();await page.mouse.move(box.x+65,box.y+30,{steps:5});await page.mouse.up();expect(await page.evaluate(()=>globalThis.mascotPlays)).toEqual([]);
+});
+
+test('Comfort previews larger text locally with undo and does not hide form controls',async({page})=>{
+ const {calls}=await setup(page);const guide=page.locator('#accesspatch-guide');const before=await page.locator('#help').evaluate(el=>getComputedStyle(el).fontSize);
+ await guide.getByRole('button',{name:'Comfort',exact:true}).click();await guide.getByLabel('Offer larger text',{exact:true}).check();await guide.getByRole('button',{name:'Done',exact:true}).click();
+ if(process.env.CAPTURE_EVIDENCE){await page.screenshot({path:'/tmp/accesspatch-comfort-suggestion.png'});await guide.getByRole('button',{name:'Comfort',exact:true}).click();await page.screenshot({path:'/tmp/accesspatch-comfort-preferences.png'});await guide.getByRole('button',{name:'Done',exact:true}).click();}
+ await guide.getByRole('button',{name:'Preview larger text',exact:true}).click();await expect.poll(()=>page.locator('#help').evaluate(el=>parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThan(parseFloat(before));
+ await expect(page.locator('#household')).toBeVisible();await expect(page.locator('#energy')).toBeVisible();await guide.getByRole('button',{name:'Undo',exact:true}).click();await expect(page.locator('#help')).toHaveCSS('font-size',before);
+ expect(calls.filter(c=>c.type==='api'&&c.body)).toHaveLength(0);
+});
+test('Comfort separates people and respects dismissals without model calls',async({page})=>{
+ const {calls}=await setup(page);const guide=page.locator('#accesspatch-guide');await guide.getByRole('button',{name:'Comfort',exact:true}).click();await guide.getByLabel('Offer larger text',{exact:true}).check();await guide.getByLabel('Preference profile',{exact:true}).selectOption('other');await expect(guide.getByLabel('Offer larger text',{exact:true})).not.toBeChecked();
+ await guide.getByLabel('Preference profile',{exact:true}).selectOption('personal');await expect(guide.getByLabel('Offer larger text',{exact:true})).toBeChecked();await guide.getByRole('button',{name:'Done',exact:true}).click();await guide.getByRole('button',{name:'Dismiss suggestion',exact:true}).click();await expect(guide.getByRole('button',{name:'Preview larger text',exact:true})).toBeHidden();expect(calls.filter(c=>c.type==='api'&&c.body)).toHaveLength(0);
+});
+test('reading focus preserves navigation, images, errors and original text',async({page})=>{
+ await setup(page);await page.evaluate(()=>{const main=document.createElement('main');main.innerHTML='<p>Original instructions</p><img alt="" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="><div role="alert">Required deadline</div>';document.body.append(main);});
+ const guide=page.locator('#accesspatch-guide');await guide.getByRole('button',{name:'Comfort',exact:true}).click();await guide.getByLabel('Offer a quieter reading view',{exact:true}).check();await guide.getByRole('button',{name:'Done',exact:true}).click();await guide.getByRole('button',{name:'Preview reading focus',exact:true}).click();await expect(page.locator('#energy')).toBeVisible();await expect(page.locator('main img')).toBeVisible();await expect(page.getByRole('alert')).toBeVisible();await expect(page.locator('main')).toContainText('Original instructions');await guide.getByRole('button',{name:'Undo',exact:true}).click();
+});
+
+test('Guest preferences are not saved and never-again is scoped to the chosen profile',async({page})=>{
+ await setup(page);const guide=page.locator('#accesspatch-guide');await guide.getByRole('button',{name:'Comfort',exact:true}).click();await guide.getByLabel('Preference profile',{exact:true}).selectOption('guest');await guide.getByLabel('Offer larger text',{exact:true}).check();await guide.getByRole('button',{name:'Done',exact:true}).click();
+ const stored=await page.evaluate(async()=> (await chrome.storage.local.get('comfortPreferences')).comfortPreferences);expect(stored.profiles.guest).toBeUndefined();expect(stored.profiles.personal.larger).toBe(false);
+ await guide.getByText('Suggestion preferences',{exact:true}).click();await guide.getByRole('button',{name:'Don’t suggest this again',exact:true}).click();await expect(guide.getByRole('button',{name:'Preview larger text',exact:true})).toBeHidden();
+ await guide.getByRole('button',{name:'Comfort',exact:true}).click();await guide.getByLabel('Preference profile',{exact:true}).selectOption('personal');await guide.getByLabel('Offer larger text',{exact:true}).check();await guide.getByRole('button',{name:'Done',exact:true}).click();await expect(guide.getByRole('button',{name:'Preview larger text',exact:true})).toBeVisible();
+});
+test('short explanations require review and reuse the current task without leaking filled values',async({page})=>{
+ const {calls,storage}=await setup(page);const guide=page.locator('#accesspatch-guide');await page.evaluate(()=>{const main=document.createElement('main');main.innerHTML='<p>'+('Read the eligibility instructions and bring the listed documents. '.repeat(8))+'PRIVATE_CANARY</p>';document.body.append(main);});
+ await guide.getByLabel('Your task').fill('energy bill');await guide.getByRole('button',{name:'Start guiding',exact:true}).click();await expect(guide.locator('.bubble')).toContainText('Select');const run=storage.state.runId;
+ await guide.getByRole('button',{name:'Comfort',exact:true}).click();await guide.getByLabel('Offer shorter explanations',{exact:true}).check();await guide.getByRole('button',{name:'Done',exact:true}).click();await guide.getByRole('button',{name:'Explain one step at a time',exact:true}).click();
+ await expect(guide.getByLabel('Text to explain',{exact:true})).not.toHaveValue(/PRIVATE_CANARY/);expect(calls.filter(c=>c.path?.endsWith('/events'))).toHaveLength(0);
+ await guide.getByRole('button',{name:'Explain reviewed text',exact:true}).click();await expect.poll(()=>calls.filter(c=>c.path?.endsWith('/events')).length).toBe(1);const event=calls.find(c=>c.path?.endsWith('/events'));expect(event.path).toContain(run);expect(event.body.type).toBe('help-requested');expect(JSON.stringify(event.body)).not.toContain('PRIVATE_CANARY');expect(event.body.answer).toContain('Read the eligibility instructions');
+});
+test('keyboard suggestion focuses an original heading without clicking a website control',async({page})=>{
+ const {calls}=await setup(page);const guide=page.locator('#accesspatch-guide');await guide.getByRole('button',{name:'Comfort',exact:true}).click();await guide.getByLabel('Help me navigate by keyboard',{exact:true}).check();await guide.getByRole('button',{name:'Done',exact:true}).click();await guide.getByRole('button',{name:'Choose a heading',exact:true}).click();await guide.getByRole('button',{name:'Energy assistance demo',exact:true}).click();await expect(page.locator('h1')).toBeFocused();expect(await page.evaluate(()=>globalThis.clicked)).toBeUndefined();expect(calls.filter(c=>c.type==='api'&&c.body)).toHaveLength(0);
+});
+
+test('Comfort preview survives opening preferences and Restore page clears earlier appearance',async({page})=>{
+ await setup(page);const guide=page.locator('#accesspatch-guide');await guide.getByRole('button',{name:'Tools & settings',exact:true}).click();await guide.getByText('Reading preferences',{exact:true}).click();await guide.getByRole('button',{name:'High contrast',exact:true}).click();await page.locator('#help').evaluate(el=>el.style.setProperty('font-size','12px','important'));
+ await guide.getByRole('button',{name:'Comfort',exact:true}).click();await guide.getByLabel('Offer larger text',{exact:true}).check();await guide.getByRole('button',{name:'Done',exact:true}).click();await guide.getByRole('button',{name:'Preview larger text',exact:true}).click();
+ await guide.getByRole('button',{name:'Comfort',exact:true}).click();await guide.getByRole('button',{name:'Done',exact:true}).click();await expect(guide.getByRole('button',{name:'Keep for this page',exact:true})).toBeVisible();
+ await guide.getByRole('button',{name:'Restore page',exact:true}).click();expect(await page.locator('html').getAttribute('class')).not.toMatch(/apc-(easy-read|low-vision)/);
+});
+test('reading review redacts selected and short answers and rejects changed paragraphs',async({page})=>{
+ const {calls}=await setup(page);const guide=page.locator('#accesspatch-guide');await page.evaluate(()=>{const main=document.createElement('main');main.innerHTML='<select><option selected>SELECTED_SECRET</option></select><input value="XY"><p>'+('Instructions to read carefully. '.repeat(15))+' SELECTED_SECRET XY</p>';document.body.append(main);});
+ await guide.getByRole('button',{name:'Comfort',exact:true}).click();await guide.getByLabel('Offer shorter explanations',{exact:true}).check();await guide.getByRole('button',{name:'Done',exact:true}).click();await guide.getByRole('button',{name:'Explain one step at a time',exact:true}).click();await expect(guide.getByLabel('Text to explain')).not.toHaveValue(/SELECTED_SECRET|XY/);
+ await guide.getByRole('button',{name:'Comfort',exact:true}).click();await guide.getByRole('button',{name:'Done',exact:true}).click();await expect(guide.getByLabel('Text to explain')).toBeVisible();
+ await page.locator('main p').evaluate(el=>el.textContent='Changed instructions. '.repeat(20));await guide.getByRole('button',{name:'Explain reviewed text',exact:true}).click();await expect(guide.locator('.comfort-suggestion')).toContainText('The page changed');expect(calls.filter(c=>c.type==='api'&&c.body)).toHaveLength(0);
+ if(process.env.CAPTURE_EVIDENCE)await page.screenshot({path:'/tmp/accesspatch-comfort.png'});
 });

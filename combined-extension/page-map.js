@@ -75,6 +75,20 @@
     let output; const respond = result => { output = result; };
     try {
       if (message.type === 'snapshot') respond({ ok: true, snapshot: snapshot() });
+      else if (message.type === 'reading-context') {
+        const page=snapshot();
+        // Reading excerpts can echo answers outside a form. Redact even short
+        // values and selected option labels before exposing a review draft.
+        const answers=[...document.querySelectorAll('input,textarea,select')].flatMap(el=>{
+          if(el.matches('input[type=button],input[type=submit],input[type=reset]'))return [];
+          if(el.matches('input[type=checkbox],input[type=radio]')&&!el.checked)return [];
+          return el.matches('select')?[el.value,...Array.from(el.selectedOptions,option=>option.textContent)]:[el.value];
+        }).filter(Boolean).sort((a,b)=>b.length-a.length);
+        privateTokens=[...new Set([...privateTokens,...answers])];
+        const paragraphs=[...document.querySelectorAll('main p,article p,[role="main"] p')].filter(el=>!el.closest('form,[role="alert"],[aria-live]')).map(el=>safeText(el,600)).filter(text=>text.length>40).slice(0,2);
+        const text=(paragraphs.length?paragraphs.join('\n\n'):clean(page.instructions.map(item=>item.text).join('\n'),1400)).slice(0,1400);
+        respond({ok:true,text,stamp:page.pageId+':'+page.revision+':'+AccessPatchFingerprint.hash(text)});
+      }
       else if (message.type === 'restore') { restore(); respond({ ok: true }); }
       else if (message.type === 'target') {
         const current = snapshot();

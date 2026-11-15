@@ -111,3 +111,13 @@ Local daily/minute request budgets and application cooldowns have been removed f
 The mascot now has distinct listening (attentive pose), thinking (think expression), speaking (gentle motion), and ready (smile) states. State changes follow real recording/request/playback events. Dragging plays one brief dizzy reaction, not a repeating loop. Reduced motion and Keep mascot still disable expression requests and speaking motion.
 
 A friendly greeting appears on the first visit only, remembered locally. Opening an existing task keeps its current instruction. Voice mode has a direct Set up microphone button; Voice settings contains Preview voice and Speaking speed (Slower 0.8×, Normal 1×, Faster 1.2×). Speed is stored locally and applies to previews and normal replies without regenerating audio. Preview uses fixed sample text and never creates a Gemini/Mastra task; it does make an ElevenLabs speech request when configured. Stop audio, switching modes, closing the bubble, and page changes cancel or invalidate pending playback.
+
+### Comfort preferences
+
+Open **Comfort** beside Text/Voice to choose what helps: larger text, shorter explanations, spoken guidance, keyboard navigation, or reading focus. My setup and Another person are separate browser-local profiles; Guest preferences are not saved. No disability or identity is inferred and these preferences are not sent to Tiger Data or Gemini.
+
+The companion offers one relevant suggestion at a time. Dismiss silences suggestions for that page; Suggestion preferences lets you remember an offer or stop suggesting it. Larger text and reading focus have Preview, Keep for this page, and Undo. Reading focus preserves navigation, images, errors, and original instructions. Page tools label existing image descriptions honestly; they do not claim to analyze image pixels.
+
+Short explanations show an editable, redacted text review before sending to Gemini through the current task. Changed reading text invalidates that review. Spoken guidance uses the existing configured voice. Preference matching, page navigation, and visual adjustments run locally without model requests. Mastra coordinates the task and model/tool calls; Gemini supplies language reasoning when requested.
+
+Reload the unpacked extension and refresh open website tabs after updating. Page adjustments depend on each site's markup; preview and undo remain available for layouts where the change is unhelpful.
